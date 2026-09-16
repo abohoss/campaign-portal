@@ -216,7 +216,14 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Allow/disallow new user signups via email to your project.
+# Correction (verified empirically, Phase 4): `enable_signup = false` here does not just disable
+# self-serve *registration* — GoTrue ties it to the whole email/password provider, so it also
+# rejects sign-IN for already-provisioned accounts ("Email logins are disabled"). That's not
+# usable — the six real accounts need email/password sign-IN to work. Left `true`. The
+# before_user_created hook below is the actual, sufficient gate: it fires on every path that
+# creates a new auth.users row, including a public `signUp()` call, so an outsider attempting
+# self-serve email registration is rejected by the hook the same way an outsider Google sign-in
+# is — there's no gap this was covering that the hook doesn't already cover on its own.
 enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
@@ -275,9 +282,12 @@ max_frequency = "5s"
 # inactivity_timeout = "8h"
 
 # This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
-# [auth.hook.before_user_created]
-# enabled = true
-# uri = "pg-functions://postgres/auth/before-user-created-hook"
+# THE allowlist gate (docs/IMPLEMENTATION_PLAN.md §1 done-rule #1) — public.before_user_created_hook
+# in supabase/migrations/0011_auth_hook.sql. Applied to the live project with `supabase config push`
+# (this is Auth configuration, not SQL — `db push` does not touch it).
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/before_user_created_hook"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
 # [auth.hook.custom_access_token]

@@ -9,6 +9,10 @@ coverage/
 .env.local
 .env.*.local
 
+# generated credentials — never committed, shared only via the submission email per the brief
+docs/CREDENTIALS.local.md
+docs/CREDENTIALS.local.json
+
 # supabase local
 supabase/.branches/
 supabase/.temp/

@@ -16,6 +16,10 @@ npm run profile   # regenerates docs/DATA_FINDINGS.md from seed/, verifying seed
 npm run gate      # typecheck, lint, dependency rules, coverage, integration tests, mutation testing
 ```
 
+Real Supabase project access (needed for `tests/integration/**` and any `scripts/*.ts` that talks
+to the live project) needs `.env.local` and `apps/web/.env.local` — both gitignored, not included
+here. See `docs/MANUAL_SETUP.md` for what's already provisioned and what's still outstanding.
+
 ## Layout
 
 ```
@@ -33,5 +37,11 @@ tests/integration/   real-Supabase integration tests (added from Phase 3 onward)
 `npm run gate` chains: `typecheck` → `lint` → `depcruise` → `test:coverage` → `test:integration` →
 `mutation`. Thresholds live in `vitest.config.ts` (coverage) and `stryker.conf.json` (mutation) —
 see `docs/IMPLEMENTATION_PLAN.md` §7.4 for the reasoning behind each one. `npm run
-check:ac-coverage` verifies every ID in `docs/ACCEPTANCE.md` is referenced by a test; it's wired
-into the gate starting Phase 3, once the first AC-mapped tests exist.
+check:ac-coverage` verifies every ID in `docs/ACCEPTANCE.md` is referenced by a test; it becomes a
+blocking `gate` step in the final phase, once the full feature set (and so the full AC set) exists
+— run it standalone before then to see real progress.
+
+`tests/integration/**` runs against the real cloud Supabase project (no local Docker — see
+`docs/IMPLEMENTATION_PLAN.md` §7.1's "Testing strategy — deviation") and is read-only by design.
+It skips gracefully (not a failure) without `docs/CREDENTIALS.local.json`, which only exists on a
+machine that's run `scripts/provision-users.ts` against the real project.

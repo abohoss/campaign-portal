@@ -5,16 +5,16 @@ lands; don't let this drift from reality.
 
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 1 | Supabase cloud project | ✅ Done (Phase 3) | `dkzfernckoybcnwoxrbu`, org `ngqaviulocvfpukhomwe`, `eu-central-1`. Migrations `0001`–`0004` + `supabase/seed.sql` applied. |
-| 2 | Six Google-capable accounts | 🟡 In progress — **5 of 6** | See below. Sixth pending. |
-| 3 | Google OAuth client | ⬜ Not started | Needs the redirect URI, which needs the project (done) — can start anytime. |
-| 4 | Disable public signup | ⬜ Not started | Phase 4. |
-| 5 | Register the auth hook | ⬜ Not started | Phase 4. |
-| 6 | Supabase secrets (`PROVIDER_API_KEY` etc.) | ⬜ Not started | Provider key is in hand (`.env.local`, gitignored) but not yet pushed to `supabase secrets` — do this in Phase 7 when the send worker needs it, not before (no reason for an Edge Function secret to exist before an Edge Function reads it). |
+| 1 | Supabase cloud project | ✅ Done (Phase 3) | `dkzfernckoybcnwoxrbu`, org `ngqaviulocvfpukhomwe`, `eu-central-1`. Migrations `0001`–`0004`, `0011` + `supabase/seed.sql` applied. |
+| 2 | Six Google-capable accounts | 🟡 In progress — **5 of 6 provisioned** | See below. Sixth pending. |
+| 3 | Google OAuth client | ⬜ **Needs your action** | Google Cloud Console (browser + your Google account — can't be done headlessly). Redirect URI: `https://dkzfernckoybcnwoxrbu.supabase.co/auth/v1/callback`. Client ID + secret go into the Supabase dashboard → Auth → Providers → Google. The sign-in button is already built and calls `signInWithOAuth({provider:'google'})' — it'll work the moment the provider is configured. |
+| 4 | ~~Disable public signup~~ | ✅ **Corrected, not needed** | Tested directly: `[auth.email] enable_signup=false` also blocks sign-*in* for existing accounts (not just registration) — reverted to `true`. The `before_user_created` hook alone is sufficient and verified (see Phase 4 note in the plan). |
+| 5 | Register the auth hook | ✅ Done (Phase 4) | `public.before_user_created_hook`, pushed via `supabase config push`. Verified against the live project: rejects a public `signUp()` for a non-allowlisted email; does NOT gate the Admin API (by design — see plan). |
+| 6 | Supabase secrets (`PROVIDER_API_KEY` etc.) | ⬜ Not started | Provider key is in hand (`.env.local`, gitignored) but not yet pushed to `supabase secrets` — do this in Phase 7 when the send worker needs it, not before. |
 | 7 | Storage bucket (`imports`) | ⬜ Not started | Phase 5. |
 | 8 | Vercel env vars | ⬜ Not started | Phase 11 (or whenever first deployed). |
 | 9 | pg_cron schedules | ⬜ Not started | Phase 5 (import worker) / Phase 8 (event sync). |
-| 10 | Set and record six passwords | 🟡 Pending accounts | Can't finish until all six accounts exist. |
+| 10 | Set and record six passwords | 🟡 **5 of 6 done** | `scripts/provision-users.ts` generated real passwords for the 5 provisioned accounts, in `docs/CREDENTIALS.local.md`/`.json` (gitignored — share only via the submission email). Sixth once that email exists. |
 
 ## The six accounts
 
@@ -23,36 +23,30 @@ genuinely separate Google accounts, not one address with suffixes.
 
 | Email | Status | Brand | Role |
 |---|---|---|---|
-| ahmedhosamabbass@gmail.com | provided | _unassigned_ | _unassigned_ |
-| ahmedhossamabb2003@gmail.com | provided | _unassigned_ | _unassigned_ |
-| magichand093@gmail.com | provided | _unassigned_ | _unassigned_ |
-| radwanahmed0777@gmail.com | provided | _unassigned_ | _unassigned_ |
-| eldeebahmed0101@gmail.com | provided | _unassigned_ | _unassigned_ |
-| _(sixth pending)_ | not yet provided | — | — |
+| ahmedhosamabbass@gmail.com | ✅ provisioned (auth.users + membership live) | kilele | owner |
+| ahmedhossamabb2003@gmail.com | ✅ provisioned | kilele | analyst |
+| magichand093@gmail.com | ✅ provisioned | karoo | owner |
+| radwanahmed0777@gmail.com | ✅ provisioned | karoo | analyst |
+| eldeebahmed0101@gmail.com | ✅ provisioned | marrakech | owner |
+| _(sixth pending)_ | not yet provided | marrakech | analyst |
 
-Brand/role assignment (each brand gets one owner + one analyst) is deferred until all six exist —
-no reason to lock it in one short, and it costs nothing to decide later. Default plan absent other
-preference: assign in the order given, two per brand, first of each pair as owner:
+Verified for real (`tests/integration/auth.test.ts`, run against the live project): all five sign
+in with the real anon key and each sees exactly their own brand — zero foreign-brand rows across
+`contacts`, `campaigns`, `engagement_events`, `memberships`.
 
-```
-Kilele    owner:   ahmedhosamabbass@gmail.com
-Kilele    analyst: ahmedhossamabb2003@gmail.com
-Karoo     owner:   magichand093@gmail.com
-Karoo     analyst: radwanahmed0777@gmail.com
-Marrakech owner:   eldeebahmed0101@gmail.com
-Marrakech analyst: (sixth)
-```
-
-Say the word if a different pairing is wanted before Phase 4 wires up `allowed_emails` — trivial to
-change now, a small migration edit once seeded for real.
+Once the sixth email arrives:
+1. Add it to `supabase/seed.sql`'s `allowed_emails` insert (marrakech / analyst).
+2. `npx supabase db query --linked -f supabase/seed.sql` (re-apply — idempotent).
+3. `npx tsx scripts/provision-users.ts` (creates just the new one; the other five are skipped,
+   passwords untouched).
 
 ## Secrets inventory (never committed — tracked here by name only)
 
 | Name | Where it lives | Used by |
 |---|---|---|
-| `SUPABASE_PROJECT_REF`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | `.env.local` | root Node scripts (migrations, admin tasks) |
+| `SUPABASE_PROJECT_REF`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | `.env.local` | root Node scripts (migrations, admin tasks, `scripts/provision-users.ts`) |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | `apps/web/.env.local` | the SPA (anon key only, by design) |
 | `PROVIDER_BASE_URL`, `PROVIDER_API_KEY` | `.env.local` | Phase 7 send worker, Phase 3.3 probe script — not used yet |
 | `SUPABASE_ACCESS_TOKEN` | Windows User-scope env var (registry), not a repo file | `supabase` CLI, this machine only |
 | `SUPABASE_DB_PASSWORD` | Windows User-scope env var (registry), not a repo file | project creation only; not needed day-to-day since `db push`/`db query --linked` go through the Management API |
-| Six account passwords | not yet set | needed for submission email once accounts exist |
+| Five account passwords | `docs/CREDENTIALS.local.md` / `.json` (gitignored) | generated by `scripts/provision-users.ts`; share only via the submission email |

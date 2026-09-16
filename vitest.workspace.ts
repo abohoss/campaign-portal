@@ -1,4 +1,5 @@
 import { defineWorkspace } from "vitest/config";
+import { fileURLToPath } from "node:url";
 
 // Two named projects, run independently via `--project <name>` (see package.json scripts):
 //  - "unit": packages/domain and apps/web component-level tests. No external services.
@@ -7,12 +8,26 @@ import { defineWorkspace } from "vitest/config";
 //    than faking a pass by skipping the check entirely.
 export default defineWorkspace([
   {
+    // Vite/Vitest resolve .env* files relative to `envDir`, which otherwise defaults to the repo
+    // root (where `vitest.workspace.ts` lives) — apps/web/.env.test would silently never load
+    // without this, and apps/web/src/lib/supabase.ts would throw on the missing env vars the
+    // moment any component test imports it.
+    envDir: "apps/web",
+    resolve: {
+      // Mirrors apps/web/vite.config.ts's alias — that config isn't used for this root-level
+      // test run, so "@/..." imports need their own resolution here too.
+      alias: {
+        "@": fileURLToPath(new URL("./apps/web/src", import.meta.url)),
+      },
+    },
     test: {
       name: "unit",
       environment: "node",
       // packages/domain has zero DOM dependency by design (dependency-cruiser enforces it) and
-      // stays on the faster "node" environment; apps/web's React component tests need jsdom.
-      environmentMatchGlobs: [["apps/**/src/**/*.test.tsx", "jsdom"]],
+      // stays on the faster "node" environment; every apps/web test needs jsdom — including a
+      // .test.ts file with no JSX literal of its own, since @testing-library/react's render()
+      // still needs a real `document` regardless of whether the test file contains JSX syntax.
+      environmentMatchGlobs: [["apps/**/src/**/*.test.{ts,tsx}", "jsdom"]],
       include: ["packages/**/*.test.ts", "apps/**/src/**/*.test.{ts,tsx}"],
       exclude: ["**/node_modules/**", "**/dist/**", "tests/integration/**"],
       setupFiles: ["apps/web/src/test-setup.ts"],

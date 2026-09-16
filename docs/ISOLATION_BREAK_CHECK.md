@@ -46,12 +46,16 @@ and re-paste the output above.
 - **Proves**: the structural guarantee is live on the actual project right now — RLS is not just
   declared in a migration file, it is enabled and forced on every table, and the policy
   definitions genuinely reference `authorize()` rather than something weaker.
-- **Does not prove**: that a real signed-in user of one brand is behaviourally blocked from
-  reading another brand's rows. That needs real sessions and real (or realistic) data, which is
-  exactly what this build now avoids writing automatically. That behavioural proof is deferred to
-  once the six real accounts exist (Phase 4+) and is done by signing in as them through the
-  deployed app itself — which is also, not coincidentally, exactly what the brief's own grading
-  process does ("we'll sign in as each user... and make requests we expect to be turned down").
+- **Update (Phase 4): the behavioural proof below landed.** Five of six real accounts are now
+  provisioned (`docs/MANUAL_SETUP.md`), so `tests/integration/auth.test.ts` signs in as each with
+  the real anon key and asserts zero foreign-brand rows come back from every brand-scoped table —
+  genuinely proving AC-ISO-02, not just its structural precondition. Still read-only, still no
+  automated write to the real project. What's *still* not proven here: cross-brand **write**
+  rejection (AC-ISO-03) and the membership self-insert rejection (AC-ISO-05) — both would leave no
+  residue even on success, but reinterpreting the "no writes" decision to include those felt like
+  the wrong call to make unilaterally; left for once a UI exists to click through manually
+  (Phase 6+), matching how the brief's own grading process does it ("we'll sign in as each
+  user... and make requests we expect to be turned down").
 
 ## Manual break-check (optional, NOT performed automatically, run deliberately if you want the evidence)
 

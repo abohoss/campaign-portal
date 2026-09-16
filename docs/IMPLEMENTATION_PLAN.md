@@ -1245,17 +1245,50 @@ and the RPC rejects them server-side (AC-AUTH-07) · session survives reload (AC
 
 **Commit.** `feat(auth): allowlist-gated email and Google sign-in for six users`
 
-> **Executor prompt.**
-> Implement the `before-user-created` auth hook as a Postgres function that raises unless the
-> incoming email exists in `public.allowed_emails`; register it in `supabase/config.toml`. Add an
-> after-insert trigger on `auth.users` that creates the `memberships` row from `allowed_emails`.
-> Disable public signup. Seed the three brands (with `timezone` = Africa/Nairobi, Africa/Johannesburg,
-> Africa/Casablanca and `brand_code` = KILELE, KAROO, MARRAKECH) and the six allowlist entries.
+> **What actually happened / two corrections to the design above, both verified empirically
+> against the live project, not assumed.**
+>
+> 1. **`[auth.email] enable_signup = false` does not do what its name and the original design
+>    suggested.** It doesn't just disable self-serve *registration* — GoTrue ties it to the whole
+>    email/password provider, so it also rejects sign-**in** for already-provisioned accounts
+>    ("Email logins are disabled"). Tested directly: flipped it off, a real provisioned account
+>    could no longer sign in at all. **Left `enable_signup = true`.** The `before_user_created`
+>    hook alone is the actual, sufficient gate — verified by attempting a public,
+>    anon-key `signUp()` for a deliberately non-allowlisted email
+>    (`outsider-public-signup-test@vg-eval-test.invalid`): rejected by the hook, and a follow-up
+>    query confirmed zero rows were ever written to `auth.users`. This is the direct evidence for
+>    **AC-AUTH-05**.
+> 2. **The hook does NOT gate the Admin API.** Tested directly: `auth.admin.createUser()` for a
+>    non-allowlisted email (`outsider-test-DELETE-ME@vg-eval-test.invalid`) succeeded — the hook
+>    only fires on public-facing signup/OAuth paths, not trusted service-role calls (sensible on
+>    reflection: gating your own trusted admin tooling with a public-abuse hook would be backwards).
+>    This makes `scripts/provision-users.ts` — which uses the Admin API to pre-provision the six
+>    email/password identities — the actual safety boundary for *that* path, so it re-checks
+>    `allowed_emails` itself before calling `createUser`, as defense-in-depth, even though its only
+>    real input already is `allowed_emails`.
+>
+> **AC-ISO-02 is now proven behaviourally, not just structurally** — `tests/integration/auth.test.ts`
+> signs in with the real anon key as each of the five provisioned accounts and asserts zero
+> foreign-brand rows come back from `contacts`, `campaigns`, `engagement_events`, and `memberships`.
+> This is read-only (signs in, reads — never writes), consistent with the standing "no automated
+> test mutates the real project" decision from Phase 3. AC-ISO-03/05/07 (write-rejection checks)
+> remain deferred — a rejected write leaves no residue either, but reinterpreting the "no writes"
+> decision unilaterally felt like the wrong call; revisit once there's a UI to click through
+> manually instead (Phase 6+).
+>
+> Five of six real accounts provisioned for real (`docs/MANUAL_SETUP.md`) with generated passwords
+> in `docs/CREDENTIALS.local.md`/`.json` (gitignored, shared only via the submission email). Sixth
+> slot open — `supabase/seed.sql` and `scripts/provision-users.ts` both just need re-running once
+> it's provided.
+>
+> Original executor prompt, largely still accurate: implement the `before_user_created` hook as a
+> Postgres function that raises unless the incoming email exists in `public.allowed_emails`;
+> register it in `supabase/config.toml`. Add an after-insert trigger on `auth.users` that creates
+> the `memberships` row from `allowed_emails`. Seed the three brands and the allowlist entries.
 > Build the sign-in UI (email/password + Google) and a route guard that sends a user with no
-> membership to an explicit "no access" screen rather than a blank page or a redirect loop.
-> Test AC-AUTH-01..08 with real sign-ins. Critically, AC-AUTH-05 must prove that an email not on the
-> allowlist is rejected **at user-creation time**, so an outsider Google account never becomes a user
-> at all. Never grant the client any ability to write `memberships`.
+> membership to an explicit "no access" screen rather than a blank page or a redirect loop. Never
+> grant the client any ability to write `memberships`. (Do **not** disable
+> `[auth.email] enable_signup` — see correction #1 above.)
 
 ---
 
