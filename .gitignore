@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+coverage/
+.vercel/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# supabase local
+supabase/.branches/
+supabase/.temp/
+
+# editor/OS
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+npm-debug.log*
+
+# stryker
+.stryker-tmp/
+reports/mutation/

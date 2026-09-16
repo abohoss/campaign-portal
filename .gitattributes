@@ -1,0 +1,10 @@
+# The seed CSVs are hashed byte-for-byte against docs/IMPLEMENTATION_PLAN.md and
+# scripts/seed-manifest.ts (which in turn trace to the SHA-256 published in the case study brief).
+# core.autocrlf on a contributor's machine (Windows commonly defaults this to true) would silently
+# rewrite LF to CRLF on checkout and break every one of those hashes. Force these files to be
+# treated as binary — no line-ending conversion, ever, on any platform, in either direction.
+seed/*.csv -text
+
+# Everything else: normalise to LF in the repo, checked out as LF everywhere. Consistent hashes,
+# consistent diffs, no autocrlf surprises for contributors on Windows.
+* text=auto eol=lf

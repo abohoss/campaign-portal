@@ -1,0 +1,14 @@
+{
+  "name": "campaign-portal",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Velocity Growth client campaign portal — take-home build",
+  "type": "module",
+  "scripts": {
+    "profile": "tsx scripts/profile-seed.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
