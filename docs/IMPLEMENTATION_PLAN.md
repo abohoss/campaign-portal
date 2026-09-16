@@ -960,6 +960,36 @@ SQL aggregate. Enforced by an ESLint rule banning `.length` on a query result in
 | Torture | Vitest | Shuffled/duplicated event streams, N-way concurrent confirm, killed worker |
 | E2E smoke | Playwright (thin) | Six logins land in the right portal; analyst has no Send button |
 
+> **Testing strategy — deviation (recorded during Phase 3 execution).** The "Integration" row above
+> assumed `supabase start` (local Docker). In practice, local Docker Supabase was abandoned during
+> Phase 3: a disk-full crash while pulling the local stack's images corrupted Docker Desktop's
+> internal WSL state (`docker-desktop-data` was destroyed outright) badly enough that a full reset
+> wasn't worth the time against the brief's ~one-day scope. A real Supabase **cloud** project
+> (`dkzfernckoybcnwoxrbu`, org `ngqaviulocvfpukhomwe`) was created instead — the same project this
+> build eventually submits from, not a throwaway.
+>
+> A second, separate decision followed: **no automated test writes to or mutates that project.**
+> The original isolation test design (create six throwaway auth users, plant per-brand fixture
+> rows via the service role, sign in and assert cross-brand reads return nothing) was removed
+> entirely rather than adapted, because it required writes against the real project on every run.
+>
+> What replaced it, for now:
+> - `supabase db push` applying migrations `0001`–`0004` cleanly **is itself real evidence** the
+>   schema is valid — this happened against the live project, not a mock.
+> - `scripts/verify-rls.ts` — **read-only**, queries `pg_class`/`pg_policies` via
+>   `supabase db query --linked` (the Management API, not a raw DB connection) and asserts RLS is
+>   enabled+forced and every SELECT policy calls `authorize()`. Not part of `npm run gate` (needs
+>   network + an authenticated CLI session); run on demand, output captured in
+>   `docs/ISOLATION_BREAK_CHECK.md`.
+> - pgTAP was dropped for the same reason (`create extension if not exists pgtap` and the
+>   assertions both needed to run against the real project). The "Policy" row above is currently
+>   unimplemented.
+> - **Full behavioural proof — a real signed-in brand-A user reading zero brand-B rows — is
+>   deferred to Phase 4+**, tested against the deployed app's actual behaviour with the real six
+>   accounts once they exist, rather than synthetic fixtures a test run plants and deletes. This is
+>   a real gap versus the original plan until Phase 4 closes it, not a silent downgrade: it is
+>   recorded here, in `docs/ISOLATION_BREAK_CHECK.md`, and in the Phase 3 commit message.
+
 ### 7.2 The catalog-driven isolation test — `tests/integration/isolation.catalog.test.ts`
 
 Covers done-rule 8, **including tables added after the candidate has moved on**:
@@ -1147,43 +1177,58 @@ wiring all actually run.
 
 **Goal.** The tenancy guarantee, provable and self-extending.
 
-**AC IDs.** AC-ISO-01..07
+**AC IDs.** AC-ISO-01, AC-ISO-06 (structurally, via `verify-rls.ts`) · AC-ISO-02, 03, 05, 07
+(deferred to Phase 4 — see the §7.1 deviation note and "What actually happened" below).
 
-**Files.** `supabase/migrations/0001_extensions.sql` … `0004_data_tables.sql` ·
-`tests/integration/isolation.catalog.test.ts` · `tests/pgtap/rls.sql` ·
-`tests/helpers/supabase.ts` · `docs/ISOLATION_BREAK_CHECK.md`
+> **What actually happened (supersedes the "Files"/"Commands"/"Tests" below, which describe the
+> original local-Docker design).** Local Docker Supabase was abandoned mid-phase — a disk-full
+> crash corrupted Docker Desktop's WSL state beyond a quick fix. A real Supabase **cloud** project
+> was created instead (`dkzfernckoybcnwoxrbu`), and a separate decision was made that no automated
+> test may write to it. `tests/integration/isolation.catalog.test.ts`, `tests/pgtap/rls.sql`, and
+> `tests/helpers/supabase.ts` were written, then **deleted** once that decision landed, because
+> their entire design was fixture-writes-then-assert. Delivered instead:
+> - `supabase/migrations/0001_extensions.sql` … `0004_data_tables.sql`, applied for real via
+>   `supabase db push` against the live project (clean apply = real structural evidence).
+> - `scripts/verify-rls.ts` — read-only, via `supabase db query --linked` (Management API, not a
+>   raw DB connection): confirms RLS enabled+forced on all 6 tables and that every SELECT policy
+>   (except the documented `memberships` exception) calls `authorize()`. Real output captured in
+>   `docs/ISOLATION_BREAK_CHECK.md`.
+> - `supabase/seed.sql` (three brands), applied the same way.
+> - No pgTAP (same reason as the deleted integration test) and no behavioural cross-brand-read
+>   proof yet — both pushed to Phase 4, tested against the deployed app with the real six accounts.
 
-**Commands.** `supabase init && supabase start && supabase db reset && npm run test:integration`
+**Files (original design).** `supabase/migrations/0001_extensions.sql` … `0004_data_tables.sql` ·
+~~`tests/integration/isolation.catalog.test.ts`~~ · ~~`tests/pgtap/rls.sql`~~ ·
+~~`tests/helpers/supabase.ts`~~ · `docs/ISOLATION_BREAK_CHECK.md`
 
-**Tests.** The §7.2 catalog test (both parts) · cross-brand read as all six users · cross-brand
-**write** rejected · membership self-insert rejected (AC-ISO-05) · `anon` reads zero rows from every
-table (AC-ISO-06) · pgTAP per-policy assertions.
+**Commands (original design, needed local Docker).** ~~`supabase init && supabase start &&
+supabase db reset && npm run test:integration`~~ — replaced by `supabase link`,
+`supabase db push`, `supabase db query --linked -f supabase/seed.sql`, `npm run verify:rls`.
 
-**Gate.** Full gate + the manual break-check performed and its failing output pasted into
-`docs/ISOLATION_BREAK_CHECK.md`.
+**Tests (original design, not delivered this phase).** ~~The §7.2 catalog test (both parts) ·
+cross-brand read as all six users · cross-brand write rejected · membership self-insert rejected
+(AC-ISO-05) · `anon` reads zero rows from every table (AC-ISO-06) · pgTAP per-policy
+assertions.~~ AC-ISO-06 (anon reads nothing) is in practice covered by "0 policies" on every table
+anon can reach, visible in `verify-rls.ts`'s output — anon has no role grant path to any policy at
+all, so this is a structural, not behavioural, guarantee for now too.
 
-**Commit.** `feat(db): schema with forced RLS and catalog-driven isolation tests`
+**Gate.** `npm run verify:rls` green against the live project, output pasted into
+`docs/ISOLATION_BREAK_CHECK.md`. Not part of `npm run gate` (needs network + an authenticated CLI
+session).
 
-> **Executor prompt.**
-> Write migrations `0001`–`0004` exactly as specified in §5.1–5.4 of the plan. Every table gets
-> `enable row level security` **and** `force row level security`. Every policy delegates to the
-> single helper `public.authorize(uuid, brand_role)` defined at the top of `0003_rls_policies.sql` —
-> do not inline membership checks anywhere. `memberships` gets a select policy only and no
-> insert/update/delete policy of any kind. `allowed_emails` gets no policies at all.
-> Then write `tests/integration/isolation.catalog.test.ts` with the two parts in §7.2: enumerate
-> `pg_class` for every `relkind='r'` table in `public` and assert both `relrowsecurity` and
-> `relforcerowsecurity`; then, signed in as a real Karoo analyst using the **anon key**, assert zero
-> rows from any other brand across every table carrying `brand_id`. Use real sign-ins against a local
-> `supabase start`. **Never mock Supabase.** Finally perform the four-step break-check in §7.2, and
-> paste the actual failing test output into `docs/ISOLATION_BREAK_CHECK.md`.
+**Commit.** `feat(db): schema with forced RLS, applied and verified against a live Supabase project`
 
 ---
 
 ### Phase 4 — Auth: six users, Google, allowlist
 
 **Goal.** Exactly six people can get in, each landing in their own portal, either sign-in method.
+**Also picks up the behavioural isolation proof deferred from Phase 3** (AC-ISO-02, 03, 05, 07):
+once the six real accounts exist, sign in as each through the deployed app / real anon-key
+sessions and assert cross-brand reads and writes are rejected — against the live project, using
+the real accounts that exist anyway, not synthetic fixtures a test plants and deletes.
 
-**AC IDs.** AC-AUTH-01..08
+**AC IDs.** AC-AUTH-01..08, AC-ISO-02, AC-ISO-03, AC-ISO-05, AC-ISO-07
 
 **Files.** `supabase/migrations/0011_auth_hook.sql` · `supabase/seed.sql` ·
 `apps/web/src/features/auth/**` · `apps/web/src/lib/supabase.ts` ·
@@ -1487,6 +1532,12 @@ Google sign-in verified live · the share link opened from a clean browser profi
 ## 9. Manual setup the human must do
 
 The executor cannot do any of these. Track them in `docs/MANUAL_SETUP.md`.
+
+> **Done in Phase 3.** The Supabase cloud project itself already exists — `dkzfernckoybcnwoxrbu`
+> (org `ngqaviulocvfpukhomwe`, `eu-central-1`), created via `supabase projects create` using a
+> personal access token, migrations `0001`–`0004` and `supabase/seed.sql` applied via
+> `supabase db push` / `supabase db query --linked`. Credentials live in `.env.local` and
+> `apps/web/.env.local` (both gitignored). What's below is what's still outstanding.
 
 | # | Task | Notes |
 |---|---|---|

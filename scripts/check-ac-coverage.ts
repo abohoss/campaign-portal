@@ -6,10 +6,13 @@
  * test" (docs/IMPLEMENTATION_PLAN.md §8) — it doesn't judge whether the test is any good, only
  * that nobody quietly shipped a feature with a criterion nobody wrote a test for.
  *
- * NOT wired into `npm run gate` until Phase 3 (see docs/IMPLEMENTATION_PLAN.md Phase 2's
- * executor prompt): in Phase 2 there are zero AC-mapped tests by design, since no feature exists
- * yet to test. Running this in the gate before that would fail on all 81 criteria for a reason
- * that has nothing to do with code quality. From Phase 3 onward, wire it in:
+ * NOT wired into `npm run gate` as a blocking step until Phase 11 (final submission phase).
+ * Each phase before that only builds and tests a handful of AC families — Phase 3 covers
+ * AC-ISO-01..07, Phase 4 adds AC-AUTH-*, and so on — so at any point before Phase 11, most of the
+ * 81 criteria are still legitimately untested because most of the app doesn't exist yet. Failing
+ * the gate on that would be noise, not signal. Run it standalone at the end of every phase to see
+ * real progress (`N/81 covered`), and make it a blocking `gate` step only once the feature set is
+ * complete:
  *
  *   "gate": "... && npm run check:ac-coverage && ..."
  *
@@ -33,7 +36,10 @@ const TEST_GLOBS = [
 
 function extractAcIds(markdown: string): string[] {
   const ids: string[] = [];
-  for (const m of markdown.matchAll(AC_ID_RE)) ids.push(m[1]);
+  for (const m of markdown.matchAll(AC_ID_RE)) {
+    const id = m[1];
+    if (id) ids.push(id);
+  }
   return ids;
 }
 

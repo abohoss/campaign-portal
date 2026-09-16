@@ -140,7 +140,8 @@ function parseCsv(text: string, delimiter: string): string[][] {
   // trailing field/row if the file doesn't end with a newline
   if (field.length > 0 || row.length > 0) endRow();
   // drop a single trailing all-empty row from a final newline
-  if (rows.length > 0 && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") {
+  const lastRow = rows[rows.length - 1];
+  if (lastRow && lastRow.length === 1 && lastRow[0] === "") {
     rows.pop();
   }
   return rows;
@@ -186,6 +187,7 @@ function loadTable(file: string, delimiter: string): Table {
   const { text, encoding } = decode(buf);
   const raw = parseCsv(text, delimiter);
   const header = raw[0];
+  if (!header) throw new Error(`${file}: empty file, no header row found`);
   const rows: Record<string, string>[] = [];
   const raggedExamples: { index: number; row: string[] }[] = [];
   let raggedCount = 0;
@@ -195,11 +197,12 @@ function loadTable(file: string, delimiter: string): Table {
   // trailing newline every well-formed file ends with) — that one is not a data-quality
   // finding. Any *other* blank row, however many, is real and gets counted below.
   const lastIdx = raw.length - 1;
-  const trailingIsBlank = lastIdx >= 1 && isBlankRow(raw[lastIdx]);
+  const lastRow = raw[lastIdx];
+  const trailingIsBlank = lastIdx >= 1 && lastRow !== undefined && isBlankRow(lastRow);
 
   for (let idx = 1; idx < raw.length; idx++) {
     if (idx === lastIdx && trailingIsBlank) continue; // final-newline artifact, not a data row
-    const r = raw[idx];
+    const r = raw[idx]!; // idx < raw.length by the loop bound
     const rowNumber = idx; // 1-based, excluding the header — matches what a marketer's row count means
     if (isBlankRow(r)) {
       blankLineRows.push(rowNumber);
@@ -210,7 +213,7 @@ function loadTable(file: string, delimiter: string): Table {
       if (raggedExamples.length < 5) raggedExamples.push({ index: rowNumber, row: r });
     }
     const obj: Record<string, string> = {};
-    for (let c = 0; c < header.length; c++) obj[header[c]] = r[c] ?? "";
+    for (let c = 0; c < header.length; c++) obj[header[c]!] = r[c] ?? "";
     rows.push(obj);
   }
   return {
@@ -245,6 +248,19 @@ function fmtInt(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+/** Whether `arr` is non-decreasing under `key`. Written as a loop (not `arr[i-1]` inline in a
+ *  `.every`) so each element is read once into a local, sidestepping noUncheckedIndexedAccess
+ *  noise at every call site for an invariant (`i-1` and `i` are both in-bounds by the loop) that
+ *  isn't actually in doubt here. */
+function isSortedBy<T>(arr: T[], key: (t: T) => string): boolean {
+  for (let i = 1; i < arr.length; i++) {
+    const prev = arr[i - 1]!;
+    const cur = arr[i]!;
+    if (key(prev) > key(cur)) return false;
+  }
+  return true;
+}
+
 function nonEmpty(v: string | undefined): boolean {
   return !!v && v.trim() !== "";
 }
@@ -260,7 +276,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DMY_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?: (\d{2}):(\d{2}))?$/;
 
 /** Parses the three signup_at shapes seen in the seed (§2.5): ISO ts, date-only, DD/MM/YYYY. */
-function parseSeedDate(v: string): Date | null {
+function parseSeedDate(v: string | undefined): Date | null {
   if (!v) return null;
   if (ISO_TS_RE.test(v)) {
     const d = new Date(v.endsWith("Z") ? v : v.replace(" ", "T") + "Z");
@@ -272,9 +288,11 @@ function parseSeedDate(v: string): Date | null {
   }
   const m = DMY_RE.exec(v);
   if (m) {
+    // dd/mm/yyyy are mandatory capture groups (guaranteed present when DMY_RE matches at all);
+    // only the trailing " HH:MM" group is optional, which is what the `hh ?? "00"` below is for.
     const [, dd, mm, yyyy, hh, min] = m;
     const d = new Date(
-      `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}T${hh ?? "00"}:${min ?? "00"}:00Z`,
+      `${yyyy}-${mm!.padStart(2, "0")}-${dd!.padStart(2, "0")}T${hh ?? "00"}:${min ?? "00"}:00Z`,
     );
     return isNaN(d.getTime()) ? null : d;
   }
@@ -299,11 +317,12 @@ function reportFile(t: Table): void {
       `${t.hadBom ? " &nbsp;·&nbsp; **UTF-8 BOM present**" : ""}`,
   );
   P(`- columns: \`${t.header.join(", ")}\``);
-  if (t.raggedCount > 0) {
+  const firstRagged = t.raggedExamples[0];
+  if (t.raggedCount > 0 && firstRagged) {
     P(
       `- **${fmtInt(t.raggedCount)} ragged row(s)** (field count ≠ header count, not blank). Example (row ${
-        t.raggedExamples[0].index
-      }): \`${JSON.stringify(t.raggedExamples[0].row)}\``,
+        firstRagged.index
+      }): \`${JSON.stringify(firstRagged.row)}\``,
     );
   }
   if (t.blankLineCount > 0) {
@@ -361,10 +380,11 @@ function reportColumn(
     const unparseable = nn.length - parsed.length;
     if (parsed.length > 0) {
       const sorted = [...parsed].sort((a, b) => a.getTime() - b.getTime());
+      // Non-null: sorted has the same length as parsed, already checked > 0 above.
+      const first = sorted[0]!;
+      const last = sorted[sorted.length - 1]!;
       P(
-        `  - parsed range: ${sorted[0].toISOString().slice(0, 10)} .. ${sorted[
-          sorted.length - 1
-        ]
+        `  - parsed range: ${first.toISOString().slice(0, 10)} .. ${last
           .toISOString()
           .slice(0, 10)} &nbsp;·&nbsp; unparseable: ${fmtInt(unparseable)}`,
       );
@@ -471,7 +491,9 @@ function main(): void {
   P(`- phone values mangled into scientific notation (unrecoverable): ${fmtInt(kcSciPhones.length)}`);
   const kcLongNotes = kc.rows.filter((r) => (r.notes ?? "").length > 200);
   P(`- \`notes\` longer than 200 chars: ${fmtInt(kcLongNotes.length)}${
-    kcLongNotes.length ? ` (max ${fmtInt(Math.max(...kcLongNotes.map((r) => r.notes.length)))} chars)` : ""
+    kcLongNotes.length
+      ? ` (max ${fmtInt(Math.max(...kcLongNotes.map((r) => (r.notes ?? "").length)))} chars)`
+      : ""
   }`);
   const kcNewlineNotes = kc.rows.filter((r) => (r.notes ?? "").includes("\n"));
   P(`- \`notes\` with an embedded newline (inside a quoted field): ${fmtInt(kcNewlineNotes.length)}`);
@@ -518,10 +540,8 @@ function main(): void {
     ke.rows.filter((r) => !keCampaignIds.has(r.campaign_external_id)).map((r) => r.campaign_external_id),
   );
   P(`- event rows referencing an unknown campaign: ${fmtInt([...keOrphanCampaign].length)} distinct id(s)`);
-  const idsSorted = ke.rows.every((r, i, arr) => i === 0 || arr[i - 1].event_id <= r.event_id);
-  const tsSorted = ke.rows.every(
-    (r, i, arr) => i === 0 || arr[i - 1].occurred_at_utc <= r.occurred_at_utc,
-  );
+  const idsSorted = isSortedBy(ke.rows, (r) => r.event_id ?? "");
+  const tsSorted = isSortedBy(ke.rows, (r) => r.occurred_at_utc ?? "");
   P(`- file already sorted by \`event_id\`: ${idsSorted} &nbsp;·&nbsp; by \`occurred_at_utc\`: ${tsSorted}`);
   const campaignsWithNoEvents = kk.rows
     .map((r) => r.external_id)
@@ -637,23 +657,27 @@ function main(): void {
     ["Karoo", rk],
     ["Marrakech", mk],
   ] as const) {
+    // sent_at_utc/send_local_time are 0%-null on every campaigns file (verified above by
+    // reportColumn's null counts on this same table) — non-null assertions reflect that, not an
+    // unchecked assumption.
     const offsetMinutes = t.rows.map((r) => {
-      const utc = new Date(r.sent_at_utc);
-      const [d, hm] = r.send_local_time.split(" ");
+      const utc = new Date(r.sent_at_utc!);
+      const [d, hm] = r.send_local_time!.split(" ");
       const local = new Date(`${d}T${hm}:00Z`);
       return Math.round((local.getTime() - utc.getTime()) / 60000);
     });
     const c = counter(offsetMinutes.map(String));
-    const [modeStr, modeCount] = topN(c, 1)[0];
+    const modeEntry = topN(c, 1)[0];
+    if (!modeEntry) continue; // t.rows is non-empty for every campaigns file profiled here
+    const [modeStr, modeCount] = modeEntry;
     const mode = Number(modeStr);
     const nearestHour = Math.round(mode / 60);
     const all = [...new Set(offsetMinutes)].sort((a, b) => a - b);
+    const spread = all[all.length - 1]! - all[0]!;
     P(
       `| ${name} | UTC${nearestHour >= 0 ? "+" : ""}${nearestHour} (mode ${mode}min) | ${fmtInt(
         modeCount,
-      )} / ${fmtInt(t.rows.length)} | ${all[all.length - 1] - all[0]} | ${all
-        .map((m) => `${m}min`)
-        .join(", ")} |`,
+      )} / ${fmtInt(t.rows.length)} | ${spread} | ${all.map((m) => `${m}min`).join(", ")} |`,
     );
   }
   P();
