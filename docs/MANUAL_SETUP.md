@@ -6,15 +6,15 @@ lands; don't let this drift from reality.
 | # | Task | Status | Notes |
 |---|---|---|---|
 | 1 | Supabase cloud project | ✅ Done (Phase 3) | `dkzfernckoybcnwoxrbu`, org `ngqaviulocvfpukhomwe`, `eu-central-1`. Migrations `0001`–`0004`, `0011` + `supabase/seed.sql` applied. |
-| 2 | Six Google-capable accounts | 🟡 In progress — **5 of 6 provisioned** | See below. Sixth pending. |
-| 3 | Google OAuth client | ⬜ **Needs your action** | Google Cloud Console (browser + your Google account — can't be done headlessly). Redirect URI: `https://dkzfernckoybcnwoxrbu.supabase.co/auth/v1/callback`. Client ID + secret go into the Supabase dashboard → Auth → Providers → Google. The sign-in button is already built and calls `signInWithOAuth({provider:'google'})' — it'll work the moment the provider is configured. |
+| 2 | Six Google-capable accounts | ✅ **All 6 provisioned** | See below. |
+| 3 | Google OAuth client | 🟡 In progress (you) | Google Cloud Console (browser + your Google account — can't be done headlessly). Redirect URI: `https://dkzfernckoybcnwoxrbu.supabase.co/auth/v1/callback`. Client ID + secret go into the Supabase dashboard → Auth → Providers → Google. The sign-in button is already built and calls `signInWithOAuth({provider:'google'})' — it'll work the moment the provider is configured. |
 | 4 | ~~Disable public signup~~ | ✅ **Corrected, not needed** | Tested directly: `[auth.email] enable_signup=false` also blocks sign-*in* for existing accounts (not just registration) — reverted to `true`. The `before_user_created` hook alone is sufficient and verified (see Phase 4 note in the plan). |
 | 5 | Register the auth hook | ✅ Done (Phase 4) | `public.before_user_created_hook`, pushed via `supabase config push`. Verified against the live project: rejects a public `signUp()` for a non-allowlisted email; does NOT gate the Admin API (by design — see plan). |
 | 6 | Supabase secrets (`PROVIDER_API_KEY` etc.) | ⬜ Not started | Provider key is in hand (`.env.local`, gitignored) but not yet pushed to `supabase secrets` — do this in Phase 7 when the send worker needs it, not before. |
 | 7 | Storage bucket (`imports`) | ⬜ Not started | Phase 5. |
 | 8 | Vercel env vars | ⬜ Not started | Phase 11 (or whenever first deployed). |
 | 9 | pg_cron schedules | ⬜ Not started | Phase 5 (import worker) / Phase 8 (event sync). |
-| 10 | Set and record six passwords | 🟡 **5 of 6 done** | `scripts/provision-users.ts` generated real passwords for the 5 provisioned accounts, in `docs/CREDENTIALS.local.md`/`.json` (gitignored — share only via the submission email). Sixth once that email exists. |
+| 10 | Set and record six passwords | ✅ **All 6 done** | `scripts/provision-users.ts` generated real passwords for all six accounts, in `docs/CREDENTIALS.local.md`/`.json` (gitignored — share only via the submission email). |
 
 ## The six accounts
 
@@ -28,17 +28,14 @@ genuinely separate Google accounts, not one address with suffixes.
 | magichand093@gmail.com | ✅ provisioned | karoo | owner |
 | radwanahmed0777@gmail.com | ✅ provisioned | karoo | analyst |
 | eldeebahmed0101@gmail.com | ✅ provisioned | marrakech | owner |
-| _(sixth pending)_ | not yet provided | marrakech | analyst |
+| hamedfaisalkamel@gmail.com | ✅ provisioned | marrakech | analyst |
 
-Verified for real (`tests/integration/auth.test.ts`, run against the live project): all five sign
+Verified for real (`tests/integration/auth.test.ts`, run against the live project): all six sign
 in with the real anon key and each sees exactly their own brand — zero foreign-brand rows across
 `contacts`, `campaigns`, `engagement_events`, `memberships`.
 
-Once the sixth email arrives:
-1. Add it to `supabase/seed.sql`'s `allowed_emails` insert (marrakech / analyst).
-2. `npx supabase db query --linked -f supabase/seed.sql` (re-apply — idempotent).
-3. `npx tsx scripts/provision-users.ts` (creates just the new one; the other five are skipped,
-   passwords untouched).
+All six should also be added as **test users** on the Google OAuth consent screen (task #3) so
+Google sign-in works for them while the app stays in Testing mode.
 
 ## Secrets inventory (never committed — tracked here by name only)
 
