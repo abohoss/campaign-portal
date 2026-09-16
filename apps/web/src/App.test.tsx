@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
@@ -23,6 +23,8 @@ function renderApp() {
 }
 
 describe("App", () => {
+  afterEach(() => window.history.pushState({}, "", "/"));
+
   it("renders the sign-in page when signed out", () => {
     vi.mocked(useSession).mockReturnValue({ session: null, loading: false });
     vi.mocked(useMembership).mockReturnValue({
@@ -56,6 +58,9 @@ describe("App", () => {
       order: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     } as never);
+    // "/" now routes to the dashboard, not Import — navigate there directly so this test still
+    // exercises the Import route's owner-only gate without also having to stub the dashboard RPCs.
+    window.history.pushState({}, "", "/import");
 
     renderApp();
     expect(screen.getByRole("heading", { name: "Karoo Coaches" })).toBeInTheDocument();

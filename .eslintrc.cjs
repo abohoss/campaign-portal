@@ -58,5 +58,22 @@ module.exports = {
         complexity: "off",
       },
     },
+    {
+      // §6/§7.4: every dashboard figure must come from a SQL aggregate, never from counting a
+      // fetched row array client-side — PostgREST truncates at 1000 rows regardless, so a
+      // client-side count would silently be wrong above that. `data` is this codebase's
+      // established name for a useQuery/useInfiniteQuery result (see useDashboardTotals.ts etc.).
+      files: ["apps/web/src/features/dashboard/**/*.{ts,tsx}"],
+      rules: {
+        "no-restricted-syntax": [
+          "error",
+          {
+            selector: "MemberExpression[object.name='data'][property.name='length']",
+            message:
+              "Don't count rows client-side (PostgREST truncates at 1000 rows). Use a SQL-computed total — see docs/IMPLEMENTATION_PLAN.md §6.",
+          },
+        ],
+      },
+    },
   ],
 };

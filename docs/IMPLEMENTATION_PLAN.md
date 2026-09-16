@@ -1413,10 +1413,47 @@ campaigns surface the data-quality banner (AC-NUM-09) · contacts list paginates
 
 **Commit.** `feat(dashboard): SQL-computed metrics with on-screen counting rules`
 
-> **Executor prompt.**
+> **What actually happened — two real bugs the live project's performance surfaced, plus a design
+> correction.**
+>
+> 1. **The metric functions were first written `security_invoker`, per this section's original
+>    wording — and that was wrong for functions, only right for the view.** `security_invoker`
+>    means every underlying table read is *also* re-checked by that table's own RLS policy, in
+>    addition to the function's own `where brand_id = p_brand_id` filter — RLS is enforced
+>    alongside a function's WHERE clause, not replaced by it. Since `authorize()` is itself
+>    SECURITY DEFINER (never inlinable), that meant one `authorize()` call per row touched, not per
+>    call. Caught for real, not hypothetically: `dashboard_campaign_performance` for Kilele hit the
+>    `authenticated` role's 8s `statement_timeout` (57014) in `tests/integration/metrics.test.ts`,
+>    which reads real data loaded in Phase 5. **All four functions were switched to
+>    `security definer`**, keeping the explicit `authorize(p_brand_id)` check at the top as the
+>    actual security boundary (same pattern as the plan's own §5.9 RPCs) — that early check is now
+>    load-bearing, not just a UX nicety. `v_contact_contactable` stays `security_invoker = true`
+>    (it's for ad hoc querying under the caller's own RLS, not the hot dashboard path);
+>    `dashboard_totals` queries `public.contacts` directly instead of through the view for exactly
+>    this reason.
+> 2. **`dashboard_campaign_performance` had the same OUT-parameter/column-name collision bug as
+>    `apply_import_chunk` (Phase 5)** — its `RETURNS TABLE` declares a `campaign_id` OUT parameter,
+>    and a bare `campaign_id` reference inside an inner subquery ("column reference is ambiguous",
+>    42702) collided with it. Fixed by qualifying it (`engagement_events.campaign_id`), not by
+>    renaming the OUT parameter this time, since nothing outside the function needed to change.
+> 3. **Even after both fixes, the same real query was still genuinely slow** — `count(distinct
+>    contact_id)` grouped by `campaign_id` over Kilele's ~303k engagement_events rows required an
+>    external-merge disk sort (measured ~3.4s via `EXPLAIN (ANALYZE, BUFFERS)` against the live
+>    project, run as service-role to isolate the cost from RLS). Added
+>    `events_brand_campaign_type_contact_idx on engagement_events (brand_id, campaign_id,
+>    event_type, contact_id)` (`supabase/migrations/0015_campaign_performance_index.sql`) — matches
+>    the query's exact access pattern, turning the disk-spilling Sort into an Index Only Scan +
+>    Incremental Sort. Measured ~500ms warm-cache after, a ~6.8x improvement, comfortably inside the
+>    8s budget. This is the concrete shape of done-rule 5 ("as usable for the big brand as the small
+>    one") — Karoo/Marrakech never would have surfaced this at their row counts.
+>
+> Original executor prompt, corrected for #1 above (`security definer`, not `security_invoker`, for
+> the functions):
+
 > Write the metric functions in `0010_metrics.sql` exactly per §6 — every one `stable`,
-> `security_invoker = true` for views, and each function beginning with an explicit
-> `authorize(p_brand_id)` check because SECURITY DEFINER bypasses RLS. **No materialized views.**
+> `security definer`, and each beginning with an explicit `authorize(p_brand_id)` check, which is
+> the actual isolation boundary for these functions (SECURITY DEFINER bypasses RLS). The
+> `v_contact_contactable` view stays `security_invoker = true`. **No materialized views.**
 > `dashboard_signups_daily` must `generate_series` over the 30-day window so empty days return an
 > explicit 0 rather than being absent, and must bucket by `signup_at at time zone brands.timezone`.
 > Build contacts (server-side keyset pagination, search, filters), campaigns (list + detail), and the
