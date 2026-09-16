@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation-tests packages/domain only — TypeScript domain logic per §7.4/§7.5 of docs/IMPLEMENTATION_PLAN.md. SQL guarantees (RLS, confirm_send, event ingestion, share-link auth) are NOT covered by this and are protected by the integration/torture tests instead; see the README's 'what mutation testing does not cover' table once it exists (Phase 11).",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "stryker.vitest.config.ts"
+  },
+  "mutate": ["packages/domain/src/**/*.ts", "!packages/domain/src/**/*.test.ts"],
+  "coverageAnalysis": "perTest",
+  "thresholds": {
+    "high": 90,
+    "low": 75,
+    "break": 75
+  },
+  "reporters": ["progress", "clear-text", "html"],
+  "htmlReporter": {
+    "fileName": "reports/mutation/index.html"
+  },
+  "tempDirName": ".stryker-tmp"
+}

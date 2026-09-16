@@ -459,7 +459,7 @@ function main(): void {
   ] as const) {
     reportColumn(kc, col, opts);
   }
-  const kcDup = reportDupKey(kc, "external_id");
+  reportDupKey(kc, "external_id");
   const kcKaroo = kc.rows.filter((r) => r.brand_code === "KAROO");
   P(`- rows carrying \`brand_code=KAROO\` inside the Kilele file (cross-brand contamination): **${fmtInt(kcKaroo.length)}**`);
   const kcFuture = kc.rows.filter((r) => {

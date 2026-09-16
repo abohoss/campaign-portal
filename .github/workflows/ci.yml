@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify seed integrity
+        run: npm ci && npm run profile
+
+      # From Phase 3 onward this job needs a `supabase start` step here before `npm run gate`,
+      # since tests/integration/** requires a real local Supabase instance
+      # (docs/IMPLEMENTATION_PLAN.md §7.1: "No mocks of Supabase, ever."). Phase 2 has zero
+      # integration tests yet (vitest.workspace.ts's "integration" project passes on empty), so
+      # this step is deliberately not here yet — add it in the Phase 3 commit alongside the first
+      # real integration tests, not before.
+
+      - name: Gate
+        run: npm run gate

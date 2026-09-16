@@ -1,0 +1,12 @@
+{
+  "name": "@campaign-portal/domain",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Pure TypeScript domain logic — import validation, metric definitions, event precedence. Zero framework imports (enforced by .dependency-cruiser.cjs).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
