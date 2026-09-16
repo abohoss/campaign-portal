@@ -1318,7 +1318,57 @@ orphan events quarantine as `UNKNOWN_CAMPAIGN` (AC-IMP-11).
 
 **Commit.** `feat(import): chunked, resumable, idempotent brand import with error reporting`
 
-> **Executor prompt.**
+> **What actually happened — real bugs the real data and the real deployed pipeline surfaced.**
+>
+> 1. **A literal NUL byte in a real field value.** Kilele row `CT-95855`'s `full_name` contains an
+>    embedded ` `. Postgres's `jsonb` rejects it outright ("unsupported Unicode escape
+>    sequence"), which only showed up after chunk 0 of the real 84k-row import succeeded and chunk 1
+>    failed mid-run. Fixed by stripping NUL bytes in both `normalize.ts` (`normalizeNullSentinel`)
+>    and `normalize-email.ts`, redeployed, then re-ran the full import for real — 17 chunks, one
+>    worker invocation, ~12s.
+> 2. **The "025..." malformed Kenyan phone shape was mis-modelled** in the original design (`§2.5`
+>    lists it as "12 digits, leading 0"). The real value is `0257NNNNNNNN` — a stray extra `2` before
+>    the genuine `07…` national number, not a generic 12-digit trunk prefix. Rewrote
+>    `normalizePhone` around the actual regex (`^025(7\d{8})$`) once this was visible in the real
+>    file, not the profiled summary.
+> 3. **Two independent, real pagination bugs in `scripts/seed-events.ts`**, found only by re-running
+>    against the live project and comparing counts to the documented §2.7 profile: (a) `.range()`
+>    paging without `.order("id")` returns non-deterministic/overlapping pages, which wrongly
+>    quarantined 38,907 real Kilele events as `UNKNOWN_CONTACT`; (b) a second, *unpaginated* fetch
+>    building the id-lookup map silently capped at ~1,000 rows, leaving `contact_id: null` on
+>    262,036 of 265,712 Kilele events and 63,616 of 69,100 Karoo events (nullable column, so no
+>    error — just silently wrong). Both fixed, and both brands' events **re-loaded from scratch**
+>    against the live project to correct the already-inserted bad rows (required also dropping
+>    `ignoreDuplicates: true` from the upsert, since that would have skipped fixing rows already
+>    corrupted by bug (a)/(b) on conflict).
+> 4. **Deno cannot resolve the monorepo's Node-style `.js` import specifiers against sibling `.ts`
+>    files** — undocumented in the original design, which assumed Edge Functions could import
+>    `packages/domain` directly. Fixed with `scripts/sync-domain-to-edge-functions.ts`: mirrors
+>    `packages/domain/src/**` into a gitignored `supabase/functions/_shared/domain/`, rewriting
+>    `.js` specifiers to `.ts`. Run via `npm run sync:domain` before every function deploy
+>    (`npm run functions:deploy` does both).
+> 5. **`citext` needed explicit schema-qualification** (`public.citext`) inside
+>    `apply_import_chunk` — SECURITY DEFINER with `search_path = ''` otherwise fails with "type
+>    citext does not exist"; verified via `pg_extension` that `citext` lives in `public` on this
+>    project while `pgcrypto` lives in `extensions`, so this isn't a copy-paste-safe assumption
+>    across projects.
+> 6. **`RETURNS TABLE` column names collided with same-named table columns** referenced inside
+>    `apply_import_chunk`'s body ("column reference is ambiguous", 42702) — renamed the OUT
+>    parameters to `out_inserted`/`out_updated`/`out_rejected`/`out_warnings`, which also required an
+>    explicit `drop function if exists` first since Postgres won't let `CREATE OR REPLACE` change a
+>    function's return-column shape.
+>
+> All 11 seed files (3× contacts + the Kilele delta, 3× campaigns, 3× events) have been loaded into
+> the live project for real via `scripts/run-import.ts` (contacts/campaigns, through the real UI
+> upload → `import-start` → `import-worker` path) and `scripts/seed-events.ts` (events — a committed
+> idempotent seed script, not a UI workflow, per the plan's §10 approved deviation). pg_cron runs
+> `import-worker` every 10s while a run is queued (`supabase/migrations/0014_import_cron.sql`); the
+> service-role key it needs was written once via a throwaway temp SQL file
+> (`scripts/_scratch-vault.sql`, deleted immediately after running, never committed) into Supabase
+> Vault, never into a migration file.
+>
+> Original executor prompt, still accurate for everything not covered above:
+
 > Build the import pipeline exactly as §2.10 and §4.2 specify.
 > `packages/domain/src/import/` is **pure TypeScript with zero Supabase or React imports** — it
 > detects BOM, delimiter and encoding (UTF-8 with cp1252 fallback), maps per-brand header aliases,

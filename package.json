@@ -13,6 +13,8 @@
     "db:push": "supabase db push",
     "db:query": "supabase db query --linked",
     "verify:rls": "tsx scripts/verify-rls.ts",
+    "sync:domain": "tsx scripts/sync-domain-to-edge-functions.ts",
+    "functions:deploy": "npm run sync:domain && supabase functions deploy",
     "check:ac-coverage": "tsx scripts/check-ac-coverage.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces --if-present",
     "lint": "eslint . --max-warnings 0",

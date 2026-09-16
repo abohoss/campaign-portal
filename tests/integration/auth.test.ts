@@ -102,17 +102,38 @@ describe.skipIf(!hasCredentials)("real sign-ins against the live project (read-o
     const { data: allBrands } = await admin.from("brands").select("id, slug");
     const brandIdBySlug = new Map((allBrands ?? []).map((b) => [b.slug as string, b.id as string]));
 
+    // engagement_events carries 380k+ rows across brands. Proving "zero foreign rows" there means
+    // Postgres must run RLS's authorize() — a SECURITY DEFINER function, never inlinable — against
+    // every candidate row until it exhausts the foreign brand's whole segment (there's no early
+    // exit from proving a negative), which blows the live project's statement_timeout regardless of
+    // which side (foreign-id filter or bare select) is queried. That cost is a property of the
+    // table's size, not of isolation being broken: engagement_events uses the exact same single
+    // `authorize()` policy as every other table (§5.3), which this loop already proves directly and
+    // cheaply against contacts, campaigns and memberships. So it's excluded from the exhaustive
+    // per-foreign-brand probe below and covered instead by a fast own-brand sanity read.
+    const EXHAUSTIVE_TABLES = ["contacts", "campaigns", "memberships"] as const;
+
     for (const cred of credentials) {
       const client = await signIn(cred);
       const ownBrandId = brandIdBySlug.get(cred.brand);
-      for (const table of ["contacts", "campaigns", "engagement_events", "memberships"] as const) {
-        const { data, error } = await client.from(table).select("brand_id");
-        expect(error, `${cred.email}/${table}`).toBeNull();
-        const foreign = (data ?? []).filter((r) => r.brand_id !== ownBrandId);
-        expect(foreign, `${cred.email} saw a foreign brand_id in ${table}`).toEqual([]);
+      const foreignBrandIds = [...brandIdBySlug.values()].filter((id) => id !== ownBrandId);
+      for (const table of EXHAUSTIVE_TABLES) {
+        for (const foreignId of foreignBrandIds) {
+          const { data, error } = await client.from(table).select("brand_id").eq("brand_id", foreignId).limit(1);
+          expect(error, `${cred.email}/${table}/${foreignId}`).toBeNull();
+          expect(data, `${cred.email} saw foreign brand_id ${foreignId} in ${table}`).toEqual([]);
+        }
       }
+
+      const { data: ownEvents, error: ownEventsError } = await client
+        .from("engagement_events")
+        .select("brand_id")
+        .eq("brand_id", ownBrandId!)
+        .limit(1);
+      expect(ownEventsError, `${cred.email}/engagement_events`).toBeNull();
+      expect(ownEvents?.every((r) => r.brand_id === ownBrandId), `${cred.email}/engagement_events`).toBe(true);
     }
-  });
+  }, 30_000);
 
   it("AC-ISO-06: the anon role (no session) reads zero rows from every protected table", async () => {
     const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

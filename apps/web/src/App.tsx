@@ -1,34 +1,32 @@
 import { AuthGate } from "./features/auth/AuthGate.js";
+import { ImportPage } from "./features/import/ImportPage.js";
 import { supabase } from "./lib/supabase.js";
 
 /**
- * Placeholder authenticated shell. Contacts/campaigns/dashboard views (Phase 6), the send flow
- * (Phase 7) and the share link (Phase 9) replace this — Phase 4's job is only auth: six logins,
- * two methods, each landing in their own portal, analyst vs owner distinguishable.
+ * Contacts/campaigns/dashboard (Phase 6), the send flow (Phase 7) and the share link (Phase 9)
+ * add real navigation between views — for now the authenticated shell goes straight to Import,
+ * the one feature built so far beyond auth itself.
  */
 export function App(): JSX.Element {
   return (
     <AuthGate>
       {(membership) => (
-        <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-4 text-foreground">
-          <div className="text-center">
-            <h1 className="text-2xl font-semibold">{membership.brandName}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Signed in as <span className="font-medium">{membership.role}</span>
-            </p>
-          </div>
-          <p className="max-w-md text-center text-sm text-muted-foreground">
-            Contacts, campaigns and the dashboard land in later phases — see
-            docs/IMPLEMENTATION_PLAN.md.
-          </p>
-          <button
-            type="button"
-            onClick={() => void supabase.auth.signOut()}
-            className="min-h-11 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium"
-          >
-            Sign out
-          </button>
-        </main>
+        <div className="min-h-screen bg-background text-foreground">
+          <header className="flex items-center justify-between border-b border-border p-4">
+            <div>
+              <h1 className="text-lg font-semibold">{membership.brandName}</h1>
+              <p className="text-xs text-muted-foreground">Signed in as {membership.role}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void supabase.auth.signOut()}
+              className="min-h-11 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium"
+            >
+              Sign out
+            </button>
+          </header>
+          <ImportPage membership={membership} />
+        </div>
       )}
     </AuthGate>
   );

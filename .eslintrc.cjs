@@ -18,6 +18,10 @@ module.exports = {
     "reports/**",
     "seed/**",
     "**/*.md",
+    // Generated (scripts/sync-domain-to-edge-functions.ts), gitignored — a mechanical mirror of
+    // packages/domain/src, which is already linted. Linting the mirror too would just double-
+    // report the same findings under a different path.
+    "supabase/functions/_shared/domain/**",
   ],
   rules: {
     // §7.4: cyclomatic complexity gate. Enforced everywhere, not just packages/domain — a
