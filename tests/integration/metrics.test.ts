@@ -110,7 +110,7 @@ describe.skipIf(!hasCredentials)("dashboard/contacts metrics against the live pr
     expect(rows.filter((r) => r.reported_totals_inconsistent)).toHaveLength(4);
     // Aggregating Kilele's 312k-row engagement_events, grouped by campaign_id and joined against
     // all 44 campaigns, legitimately exceeds Vitest's 5s default against the live project.
-  }, 15_000);
+  }, 30_000);
 
   it("metrics.contactable.prop against real data: contacts_page's own-brand rows match isContactable's own count (Marrakech, smallest brand)", async () => {
     const cred = credentials.find((c) => c.brand === "marrakech");

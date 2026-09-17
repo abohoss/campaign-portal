@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import type { Membership } from "../auth/useMembership.js";
 import { CountingNote } from "@/components/CountingNote.js";
 import { SendPanel } from "../send/SendPanel.js";
+import { CreateShareLinkPanel } from "../share/CreateShareLinkPanel.js";
 import { useCampaignPerformance, type CampaignPerformance } from "./useCampaignPerformance.js";
 
 function formatRate(rate: number | null): string {
@@ -52,6 +53,7 @@ export function CampaignDetailPage({ membership }: { membership: Membership }): 
 
       <CampaignMetricsGrid campaign={campaign} />
       <SendPanel campaignId={campaign.campaignId} isOwner={membership.role === "owner"} />
+      <CreateShareLinkPanel campaignId={campaign.campaignId} isOwner={membership.role === "owner"} />
     </div>
   );
 }

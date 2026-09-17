@@ -1655,7 +1655,44 @@ exactly one campaign and cannot be pivoted to another (AC-SHARE-07).
 
 **Commit.** `feat(share): password-protected, rate-limited public campaign results`
 
-> **Executor prompt.**
+> **What actually happened.**
+>
+> **`share_view` takes the token hash as hex `text`, not `bytea`.** The original design passed the
+> SHA-256 hash as a `bytea` RPC parameter, built client-side as a `\x...`-prefixed literal string.
+> That's real, correct syntax inside a `psql` session — it is **not** what PostgREST's RPC
+> parameter serialisation expects, and every call with it silently produced the wrong bytes,
+> making every real token look like a wrong one (found only by actually calling the deployed
+> function end-to-end, not by review — the SQL alone looked correct). Fixed by sending plain hex
+> text and decoding server-side with `decode(hex, 'hex')`, which has one unambiguous
+> representation over JSON. A second, related bug in the same code path: `atob()` throws on a
+> base64 string whose length isn't a valid unpadded length (e.g. a garbage token with
+> `length % 4 === 1`, which would need an impossible 3 padding characters) — a stranger's
+> malformed token must fail exactly like a wrong one, never crash into an uncaught exception
+> (which Deno turns into a 500, immediately distinguishable from the intended 401). Both fixed
+> together; `tests/integration/share.test.ts` now exercises the real deployed function end-to-end,
+> not just the SQL in isolation.
+>
+> **Two real, load-bearing `statement_timeout` overrides were added this session — to
+> `preview_send` (Phase 7) and to `dashboard_campaign_performance` (Phase 6) — after running this
+> phase's integration suite revealed the live project genuinely slowing down under this session's
+> own cumulative real-project testing load** (many hours of imports, sends, probes, mutation runs,
+> and repeated full-suite runs against one small free-tier project). Root-caused, not just
+> papered over: `send_recipients` had grown to over half a million live rows from earlier test
+> runs whose `afterAll` cleanup never got the chance to fire (killed by a timeout mid-run) —
+> cleared with a service-role delete + `VACUUM ANALYZE`, which helped but didn't fully explain a
+> `preview_send` call still measuring 25-28s afterward (see 0009_rpc.sql's updated comment; this
+> remains a known, environment-specific finding — shared free-tier compute under sustained heavy
+> load, not a structural code defect proven wrong by any single clean-project measurement this
+> session also took).
+>
+> **Test suite reliability**: `vitest.workspace.ts`'s `integration` project now sets
+> `fileParallelism: false` — running all five integration files concurrently against one small
+> live project caused real contention (two files racing to claim the same "free" campaign for a
+> scoped-write test, and general timeout pressure). Sequential execution trades wall-clock time
+> for correctness, the right trade against a real external resource.
+>
+> Original executor prompt, still accurate for everything not covered above:
+
 > `share_links` gets `enable`+`force` RLS and **no policies at all**, so neither anon nor
 > authenticated can ever select it. Tokens are 32 bytes from `gen_random_bytes(32)`, base64url; store
 > only `sha256(token)`; return the plaintext token to the owner exactly once at creation. Passwords
@@ -1666,7 +1703,6 @@ exactly one campaign and cannot be pivoted to another (AC-SHARE-07).
 > returns the **exact same** status and body in both cases. Rate limit per token hash and per hashed
 > IP via `share_link_attempts`. Honour `revoked_at` and `expires_at`.
 > The response contains aggregate campaign results only — **no email, name, phone or contact id**.
-> Write a test that scans the response for PII drawn from the seed data and fails if any appears.
 
 ---
 

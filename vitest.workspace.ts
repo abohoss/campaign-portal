@@ -40,6 +40,12 @@ export default defineWorkspace([
       include: ["tests/integration/**/*.test.ts"],
       exclude: ["**/node_modules/**"],
       passWithNoTests: true,
+      // These files share one live project (a handful of Postgres connections, one small
+      // project's statement_timeout budget) — running them in parallel across files caused real
+      // contention (timeouts, and two files racing to claim the same "free" campaign for a
+      // scoped-write test). One file at a time trades wall-clock time for reliability, which is
+      // the right trade for a suite that hits a real external resource, not an in-memory one.
+      fileParallelism: false,
     },
   },
 ]);

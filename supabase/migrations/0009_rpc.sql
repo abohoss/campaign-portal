@@ -13,11 +13,15 @@ set search_path = ''
 -- Freezing Kilele's ~50k-contact audience means one SELECT count(*) plus one INSERT ... SELECT of
 -- that many rows, and the INSERT alone fires 3 FK-validation triggers (send_id/brand_id/
 -- contact_id) once per row — measured at ~4.7s via EXPLAIN (ANALYZE, BUFFERS) against the live
--- project, close enough to the `authenticated` role's 8s statement_timeout that it genuinely timed
--- out (57014) in a real integration test run. A function-scoped SET (reverted automatically when
--- the call returns, unlike a role-wide change) gives this specific, deliberate, infrequent action
--- headroom without loosening the timeout for every other authenticated query.
-set statement_timeout = '25s'
+-- project when it was otherwise idle, close enough to the `authenticated` role's 8s
+-- statement_timeout that it genuinely timed out (57014) in a real integration test run. Under
+-- this session's own sustained load (many concurrent real-project test runs back to back), the
+-- same call measured 25-28s — free-tier compute is shared and finite, and heavy testing is
+-- exactly the situation this headroom needs to survive. 45s matches the DEADLINE_MS already used
+-- by import-worker/send-worker for the same class of "big-brand-scale, deliberate, infrequent
+-- action" work. A function-scoped SET (reverted automatically when the call returns, unlike a
+-- role-wide change) keeps this scoped to preview_send alone.
+set statement_timeout = '45s'
 as $$
 declare
   v_brand_id uuid;

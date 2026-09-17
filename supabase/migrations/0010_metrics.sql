@@ -128,6 +128,12 @@ returns table (
 )
 language plpgsql stable security definer
 set search_path = ''
+-- Normally ~500ms-3.4s at Kilele's scale even before the 0015 covering index (see that
+-- migration's header). Measured hitting the authenticated role's 8s statement_timeout (57014)
+-- under this session's own sustained cumulative real-project test load (see 0009_rpc.sql's
+-- preview_send comment for the same phenomenon) — this override is headroom for that, not a sign
+-- this query is normally slow.
+set statement_timeout = '20s'
 as $$
 begin
   if not public.authorize(p_brand_id) then

@@ -119,7 +119,7 @@ describe.skipIf(!hasCredentials)("send state machine against the live project (s
 
     const { data: finalSend } = await admin.from("sends").select("status").eq("id", sendId).single();
     expect(finalSend?.status).toBe("approved");
-  }, 30_000);
+  }, 60_000);
 
   it("AC-SEND-04: confirm_send rejects a stale expected count and leaves the send in draft", async () => {
     const owner = await signIn(ownerCred);
@@ -130,7 +130,7 @@ describe.skipIf(!hasCredentials)("send state machine against the live project (s
 
     const { data: send } = await admin.from("sends").select("status").eq("id", sendId).single();
     expect(send?.status).toBe("draft");
-  }, 15_000);
+  }, 60_000);
 
   it("AC-SEND-05: an analyst's confirm_send is rejected server-side, even with the real expected count", async () => {
     if (!analystCred) return; // skip gracefully if this brand has no analyst account provisioned
@@ -143,7 +143,7 @@ describe.skipIf(!hasCredentials)("send state machine against the live project (s
 
     const { data: send } = await admin.from("sends").select("status").eq("id", sendId).single();
     expect(send?.status).toBe("draft");
-  }, 15_000);
+  }, 60_000);
 
   it("preview_send is idempotent: calling it again for the same campaign returns the same draft, not a new one", async () => {
     const owner = await signIn(ownerCred);
@@ -157,7 +157,7 @@ describe.skipIf(!hasCredentials)("send state machine against the live project (s
 
     expect(second.send_id).toBe(first.sendId);
     expect(second.recipient_count).toBe(first.recipientCount);
-  }, 15_000);
+  }, 60_000);
 
   it("preview_send freezes a send_recipients row per contactable contact, matching the returned count exactly", async () => {
     const owner = await signIn(ownerCred);
@@ -169,5 +169,5 @@ describe.skipIf(!hasCredentials)("send state machine against the live project (s
       .eq("send_id", sendId);
     expect(error).toBeNull();
     expect(count).toBe(recipientCount);
-  }, 15_000);
+  }, 60_000);
 });
