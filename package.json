@@ -16,6 +16,7 @@
     "sync:domain": "tsx scripts/sync-domain-to-edge-functions.ts",
     "functions:deploy": "npm run sync:domain && supabase functions deploy",
     "check:ac-coverage": "tsx scripts/check-ac-coverage.ts",
+    "probe": "tsx scripts/probe-provider.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces --if-present",
     "lint": "eslint . --max-warnings 0",
     "depcruise": "depcruise --config .dependency-cruiser.cjs packages apps",

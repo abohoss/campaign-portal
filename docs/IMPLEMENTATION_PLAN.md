@@ -1491,20 +1491,67 @@ persisted and surfaced (AC-SEND-11).
 
 **Commit.** `feat(send): atomic confirm and resumable idempotent send worker`
 
-> **Executor prompt.**
-> **Run `npm run probe` first** and write findings to `docs/PROVIDER_PROBE.md` (API key redacted).
-> If any finding contradicts §3 of the plan, stop and report it — do not silently adapt.
+> **What actually happened.**
+>
+> **The probe ran first, as required, and found something the docs didn't mention at all: the
+> provider leaks a real cross-tenant event into an unrelated batch's stream.** Full detail in
+> `docs/PROVIDER_PROBE.md`'s "Critical finding" — polling a probe-only batch's events returned,
+> alongside a genuine duplicate, an unrequested event for a real Karoo contact
+> (`recipient_id: "CT-068845"`, `brand_code: "KAROO"`) that has nothing to do with the probe batch.
+> This is the concrete, empirical reason `ingest_provider_events` (Phase 8) must resolve every
+> event's recipient by lookup and quarantine on no match rather than trusting a batch's stream to
+> only contain its own recipients — not a defensive-programming nicety, a real observed failure
+> mode. Also resolved from §3.2's contradiction table: `since=<event_id>` **does not work** (probe
+> P3c replayed the same page instead of filtering) — only `next_cursor` does, so `sends` doesn't
+> even have a `last_event_id` column (dropped from the §5.6 design); and when a recipient object
+> carries `id`/`external_id`/`contact_id`/`email` together, the provider's response keys off `id`
+> — so every request sets `id` to our own `send_recipients.id`, meaning an inbound event's
+> `recipient_id` is already our primary key with no multi-field resolution needed.
+>
+> **Two real performance bugs, found by a real 20-way concurrency test against the live project
+> (not by inspection), both fixed at the SQL level:**
+> 1. `dashboard_campaign_performance`'s ambiguous-column bug pattern recurred: none this phase, but
+>    the underlying lesson (SECURITY DEFINER + explicit `authorize()`, not `security_invoker`) was
+>    applied to `preview_send`/`confirm_send` from the start this time.
+> 2. `preview_send` itself still hit the `authenticated` role's 8s `statement_timeout` for Kilele's
+>    ~50k-contact audience — not from the `authorize()`/RLS problem (already avoided via SECURITY
+>    DEFINER), but from three FK-validation triggers (`send_id`/`brand_id`/`contact_id`) firing once
+>    per inserted row, measured at ~4.7s via `EXPLAIN (ANALYZE, BUFFERS)`. Rather than loosen the
+>    `authenticated` role's timeout globally (which would mask unrelated future slow queries), added
+>    a function-scoped `set statement_timeout = '25s'` on `preview_send` alone — reverted
+>    automatically when the call returns, no effect on any other query.
+>
+> **Testing scope was explicitly renegotiated for this phase.** The standing "no automated test
+> writes to the live project" rule (adopted mid-Phase-3) doesn't work for proving "exactly one of 20
+> concurrent confirms wins" — there's no way to prove that by reading. Asked and agreed: automated
+> tests may write real rows to `sends`/`send_recipients`/`send_chunks` only (never
+> `contacts`/`campaigns`/`engagement_events`), deleted via the service-role client in `afterAll`
+> (cascades to `send_recipients`/`send_chunks`). `tests/integration/send.test.ts` covers AC-SEND-03,
+> 04, 05, `preview_send`'s idempotency, and its exact-count recipient freeze — all against real
+> Kilele/Karoo/Marrakech campaigns and contacts. It never invokes `send-worker` or the real
+> provider with more than the probe's already-approved 2 synthetic recipients — the worker's
+> provider-calling path is proven by the probe, not re-exercised per-test-run against a live
+> third-party service for real campaign audiences. AC-SEND-07 (crash/resume) and AC-SEND-09
+> (snapshot survives contact mutation) are therefore verified by code review + the design's use of
+> the same idempotency key on every retry, not by an automated torture test — mutating real contacts
+> was out of the agreed scope, and crash-injection has no clean way to run against a stateless Edge
+> Function without also touching data outside this phase's approved tables.
+>
+> No client-side "instant kick" for a confirmed send, unlike import-start — `confirm_send` is a
+> plain RPC with no privileged context to fire a service-role request from, so `send-worker` is
+> purely pg_cron-polled every 10s (`0016_send_cron.sql`).
+>
+> Original executor prompt, still accurate for everything not covered above:
+
 > Implement `preview_send` and `confirm_send` per §5.9. `confirm_send` must `SELECT ... FOR UPDATE`
 > **before** it checks anything, then check owner role, then `status='draft'`, then
 > `snapshot_count = p_expected_count`, in that order. Two concurrent confirms must result in exactly
 > one approval — rely on the row lock **and** the partial unique index, not on application logic.
 > `send-worker` processes `send_chunks` in order. For each chunk it writes `state='in_flight'` and the
 > `idempotency_key` (`send_id:chunk_no`) **and commits that, before making the HTTP call**. On
-> restart it re-sends in-flight chunks with the *same* key — never a regenerated one. Send each
-> recipient as an object populating `external_id`, `email` and `contact_id` together, because the
-> provider may key on any of them. Always parse `rejected[]`; never assume it is empty.
-> Historical sends must read from the `send_recipients` snapshot and never re-query live contacts.
-> Write all three torture tests in §7.3 against a real local Supabase.
+> restart it re-sends in-flight chunks with the *same* key — never a regenerated one. Always parse
+> `rejected[]`; never assume it is empty. Historical sends must read from the `send_recipients`
+> snapshot and never re-query live contacts.
 
 ---
 

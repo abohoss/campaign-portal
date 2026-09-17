@@ -10,10 +10,10 @@ lands; don't let this drift from reality.
 | 3 | Google OAuth client | 🟡 In progress (you) | Google Cloud Console (browser + your Google account — can't be done headlessly). Redirect URI: `https://dkzfernckoybcnwoxrbu.supabase.co/auth/v1/callback`. Client ID + secret go into the Supabase dashboard → Auth → Providers → Google. The sign-in button is already built and calls `signInWithOAuth({provider:'google'})' — it'll work the moment the provider is configured. |
 | 4 | ~~Disable public signup~~ | ✅ **Corrected, not needed** | Tested directly: `[auth.email] enable_signup=false` also blocks sign-*in* for existing accounts (not just registration) — reverted to `true`. The `before_user_created` hook alone is sufficient and verified (see Phase 4 note in the plan). |
 | 5 | Register the auth hook | ✅ Done (Phase 4) | `public.before_user_created_hook`, pushed via `supabase config push`. Verified against the live project: rejects a public `signUp()` for a non-allowlisted email; does NOT gate the Admin API (by design — see plan). |
-| 6 | Supabase secrets (`PROVIDER_API_KEY` etc.) | ⬜ Not started | Provider key is in hand (`.env.local`, gitignored) but not yet pushed to `supabase secrets` — do this in Phase 7 when the send worker needs it, not before. |
+| 6 | Supabase secrets (`PROVIDER_API_KEY` etc.) | ✅ Done (Phase 7) | Pushed via `supabase secrets set --env-file` from a throwaway temp file (deleted immediately after, value never printed to any log this session kept). `send-worker` reads both at runtime. |
 | 7 | Storage bucket (`imports`) | ✅ Done (Phase 5) | `supabase/migrations/0013_storage.sql` — private bucket, owner-scoped upload policy keyed on `storage.foldername(name)[1]` via `authorize()`. |
 | 8 | Vercel env vars | ⬜ Not started | Phase 11 (or whenever first deployed). |
-| 9 | pg_cron schedules | 🟡 Partial (Phase 5) | Import worker scheduled every 10s (`supabase/migrations/0014_import_cron.sql`), service-role key stored in Vault. Event sync schedule still Phase 8. |
+| 9 | pg_cron schedules | 🟡 Partial (Phase 5/7) | Import worker every 10s (`0014_import_cron.sql`), send worker every 10s (`0016_send_cron.sql`), both via Vault-stored service-role key. Event sync schedule still Phase 8. |
 | 10 | Set and record six passwords | ✅ **All 6 done** | `scripts/provision-users.ts` generated real passwords for all six accounts, in `docs/CREDENTIALS.local.md`/`.json` (gitignored — share only via the submission email). |
 
 ## The six accounts

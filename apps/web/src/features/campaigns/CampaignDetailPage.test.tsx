@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { ReactNode } from "react";
 import { CampaignDetailPage } from "./CampaignDetailPage.js";
 import * as useCampaignPerformanceModule from "./useCampaignPerformance.js";
+import * as useSendForCampaignModule from "../send/useSendForCampaign.js";
 import type { Membership } from "../auth/useMembership.js";
 import type { CampaignPerformance } from "./useCampaignPerformance.js";
 
@@ -63,6 +64,12 @@ const campaignWithNoEvents: CampaignPerformance = {
 describe("CampaignDetailPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(useSendForCampaignModule, "useSendForCampaign").mockReturnValue({
+      data: null,
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as never);
   });
 
   it("shows a loading state", () => {
