@@ -122,7 +122,9 @@ functions carry no mutation score. Those guarantees are protected instead by:
 ## AI tools used
 
 **Claude Code** (Anthropic), running Claude Sonnet 5, built this entire repository — every
-migration, Edge Function, React component, test, and documentation file, across all 11 phases of
+migration, Edge Function, React component, test, and documentation file except for
+[`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md), which I wrote and then polished using Claude Code,
+across all 11 phases of
 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md), operating with direct access to the
 real cloud Supabase project (via the Supabase CLI and Management API) and the real provider API
 throughout the build — every bug documented in this README and in the plan's "what actually

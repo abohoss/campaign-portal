@@ -58,7 +58,7 @@ applied. Re-run after every migration that touches RLS and refresh the output ab
   provisioned (`docs/MANUAL_SETUP.md`), so `tests/integration/auth.test.ts` signs in as each with
   the real anon key and asserts zero foreign-brand rows come back from every brand-scoped table —
   genuinely proving AC-ISO-02, not just its structural precondition. Still read-only, still no
-  automated write to the real project. What's *still* not proven here: cross-brand **write**
+  automated write to the real project. What's _still_ not proven here: cross-brand **write**
   rejection (AC-ISO-03) and the membership self-insert rejection (AC-ISO-05) — both would leave no
   residue even on success, but reinterpreting the "no writes" decision to include those felt like
   the wrong call to make unilaterally; left for once a UI exists to click through manually

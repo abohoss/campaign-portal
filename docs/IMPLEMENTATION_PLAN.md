@@ -1268,7 +1268,7 @@ and the RPC rejects them server-side (AC-AUTH-07) · session survives reload (AC
 >    real input already is `allowed_emails`.
 >
 > **AC-ISO-02 is now proven behaviourally, not just structurally** — `tests/integration/auth.test.ts`
-> signs in with the real anon key as each of the five provisioned accounts and asserts zero
+> signs in with the real anon key as each of the six provisioned accounts and asserts zero
 > foreign-brand rows come back from `contacts`, `campaigns`, `engagement_events`, and `memberships`.
 > This is read-only (signs in, reads — never writes), consistent with the standing "no automated
 > test mutates the real project" decision from Phase 3. AC-ISO-03/05/07 (write-rejection checks)
@@ -1276,10 +1276,8 @@ and the RPC rejects them server-side (AC-AUTH-07) · session survives reload (AC
 > decision unilaterally felt like the wrong call; revisit once there's a UI to click through
 > manually instead (Phase 6+).
 >
-> Five of six real accounts provisioned for real (`docs/MANUAL_SETUP.md`) with generated passwords
-> in `docs/CREDENTIALS.local.md`/`.json` (gitignored, shared only via the submission email). Sixth
-> slot open — `supabase/seed.sql` and `scripts/provision-users.ts` both just need re-running once
-> it's provided.
+> Six real accounts are provisioned (`docs/MANUAL_SETUP.md`) with generated passwords in
+> `docs/CREDENTIALS.local.md`/`.json` (gitignored, shared only via the submission email).
 >
 > Original executor prompt, largely still accurate: implement the `before_user_created` hook as a
 > Postgres function that raises unless the incoming email exists in `public.allowed_emails`;
