@@ -1,18 +1,3 @@
--- schema.sql — the full, real schema of the live Supabase project, exported by concatenating
--- supabase/migrations/*.sql in the exact order they were applied (0001 through 0017) via
--- `supabase db push`. This build never had a local Postgres available (a Docker-desktop crash
--- corrupted WSL state early in the build — see docs/IMPLEMENTATION_PLAN.md Phase 3's notes —
--- and the standing decision from then on was to develop against the real cloud project only),
--- so this is a concatenation of the applied migrations rather than a pg_dump. It is a more
--- faithful record of what actually ran than a dump would be: every statement below is exactly
--- what Postgres executed, in order, including the comments explaining why.
---
--- The isolation guarantee lives in 0003_rls_policies.sql, in public.authorize() at the top of
--- that section below.
-
--- ============================================================================
--- 0001_extensions.sql
--- ============================================================================
 -- Phase 3 (docs/IMPLEMENTATION_PLAN.md §5.1): extensions and enums shared across every later
 -- migration. Nothing here is brand-scoped — no RLS applies to extensions or types.
 
@@ -32,9 +17,6 @@ create type public.import_status   as enum ('queued', 'running', 'succeeded', 'p
 create type public.import_kind     as enum ('contacts', 'campaigns');
 create type public.severity        as enum ('error', 'warning');
 
--- ============================================================================
--- 0002_core_tables.sql
--- ============================================================================
 -- Phase 3 (docs/IMPLEMENTATION_PLAN.md §5.2): tenancy tables. RLS for these lands in
 -- 0003_rls_policies.sql, alongside the public.authorize() helper they're checked against.
 
@@ -66,9 +48,6 @@ create table public.allowed_emails (
   created_at timestamptz not null default now()
 );
 
--- ============================================================================
--- 0003_rls_policies.sql
--- ============================================================================
 -- ============================================================================================
 -- THE data-isolation guarantee (docs/IMPLEMENTATION_PLAN.md §5.3, §1 done-rule #2, done-rule #8).
 --
@@ -143,9 +122,6 @@ create policy memberships_select on public.memberships
 alter table public.allowed_emails enable row level security;
 alter table public.allowed_emails force row level security;
 
--- ============================================================================
--- 0004_data_tables.sql
--- ============================================================================
 -- Phase 3 (docs/IMPLEMENTATION_PLAN.md §5.4): tenant data tables. Each table gets the isolation
 -- pattern from 0003_rls_policies.sql applied immediately after its own creation — RLS is never
 -- bolted on afterward as a separate step, so there's no window where a new table exists without
@@ -269,9 +245,6 @@ create policy engagement_events_update on public.engagement_events
   using (public.authorize(brand_id, 'owner'))
   with check (public.authorize(brand_id, 'owner'));
 
--- ============================================================================
--- 0005_import.sql
--- ============================================================================
 -- Phase 5 (docs/IMPLEMENTATION_PLAN.md §5.5): import tracking. import_runs is the resumability
 -- anchor (chunk_cursor/byte_offset survive a crashed worker); import_errors is what the marketer
 -- sees for "the data loads, and the marketer can see what didn't" (done-rule 3).
@@ -338,9 +311,6 @@ alter table public.contacts
   add constraint contacts_source_import_run_fk
   foreign key (source_import_run_id) references public.import_runs(id) on delete set null;
 
--- ============================================================================
--- 0006_sends.sql
--- ============================================================================
 -- Phase 7 (docs/IMPLEMENTATION_PLAN.md §5.6): the send state machine. Every table gets RLS
 -- enabled+forced immediately, same as every prior migration.
 --
@@ -452,9 +422,6 @@ create policy send_chunks_select on public.send_chunks
   using (exists (select 1 from public.sends s where s.id = send_chunks.send_id and public.authorize(s.brand_id)));
 -- No insert/update policy for authenticated: only the service-role send-worker ever writes here.
 
--- ============================================================================
--- 0007_events.sql
--- ============================================================================
 -- Phase 8 (docs/IMPLEMENTATION_PLAN.md §5.7): idempotent, order-independent provider event
 -- ingestion. SECURITY DEFINER with an explicit authorize() check, per the lesson learned in
 -- Phase 6/7 — not security_invoker.
@@ -632,9 +599,6 @@ $$;
 revoke all on function public.advance_events_cursor(uuid, text, text) from public;
 grant execute on function public.advance_events_cursor(uuid, text, text) to service_role;
 
--- ============================================================================
--- 0008_share.sql
--- ============================================================================
 -- Phase 9 (docs/IMPLEMENTATION_PLAN.md §5.8): password-protected, rate-limited public campaign
 -- results. share_links gets enable+force RLS and NO POLICIES AT ALL — anon and authenticated can
 -- never SELECT it directly; the only access path is public.share_view below, SECURITY DEFINER,
@@ -824,9 +788,6 @@ $$;
 revoke all on function public.share_view(text, text, text) from public;
 grant execute on function public.share_view(text, text, text) to anon;
 
--- ============================================================================
--- 0009_rpc.sql
--- ============================================================================
 -- Phase 7 (docs/IMPLEMENTATION_PLAN.md §5.9): preview_send / confirm_send. Both SECURITY DEFINER
 -- (per the Phase 6 correction — see 0010_metrics.sql's header comment for why security_invoker was
 -- the wrong default), each re-checking authorize() itself since SECURITY DEFINER bypasses RLS.
@@ -955,9 +916,6 @@ $$;
 revoke all on function public.confirm_send(uuid, int) from public;
 grant execute on function public.confirm_send(uuid, int) to authenticated;
 
--- ============================================================================
--- 0010_metrics.sql
--- ============================================================================
 -- Phase 6 (docs/IMPLEMENTATION_PLAN.md §5.10/§6): dashboard, contacts and campaigns metrics.
 -- Every figure a screen renders comes from here, never from counting rows fetched to the client
 -- (PostgREST truncates at 1000 rows regardless — see the ESLint rule in apps/web's config).
@@ -1178,9 +1136,6 @@ $$;
 revoke all on function public.contacts_page(uuid, int, timestamptz, uuid) from public;
 grant execute on function public.contacts_page(uuid, int, timestamptz, uuid) to authenticated;
 
--- ============================================================================
--- 0011_auth_hook.sql
--- ============================================================================
 -- Phase 4 (docs/IMPLEMENTATION_PLAN.md §8 Phase 4): the allowlist gate and the trigger that turns
 -- an allowlisted signup into a membership. Numbered 0011 to match the plan's final schema
 -- section (§5), which groups this with the rest of auth — Postgres/Supabase migrations apply in
@@ -1280,9 +1235,6 @@ comment on function public.handle_new_user_membership is
   'A no-op (not an error) if the email is not allowlisted — the before_user_created hook is '
   'what actually prevents that row from existing in the first place.';
 
--- ============================================================================
--- 0012_apply_import_chunk.sql
--- ============================================================================
 -- Phase 5: the transactional core of the import worker. One call = one chunk = one transaction:
 -- upsert the valid rows, record every issue, advance import_runs' counters and chunk_cursor. If
 -- the Edge Function crashes mid-chunk, this function either fully committed or didn't run at
@@ -1461,9 +1413,6 @@ comment on function public.apply_import_chunk is
   'advance together, so a crashed worker resumes from the last COMMITTED chunk_cursor, never a '
   'partial one. See supabase/functions/import-worker/index.ts.';
 
--- ============================================================================
--- 0013_storage.sql
--- ============================================================================
 -- Phase 5: the private `imports` Storage bucket. Path convention:
 -- {brand_id}/{import_run_id}/{filename} — storage.foldername(name)[1] is the brand_id segment,
 -- which is what every policy below checks against public.authorize(), the same isolation
@@ -1490,9 +1439,6 @@ create policy imports_read on storage.objects
 -- No update/delete policy: an uploaded file is immutable once written. Re-importing means
 -- uploading a new object under a new import_run_id, not overwriting an old one.
 
--- ============================================================================
--- 0014_import_cron.sql
--- ============================================================================
 -- Phase 5: schedules import-worker via pg_cron + pg_net, so an import keeps progressing even if
 -- the browser tab that started it closes immediately after upload — the actual point of running
 -- this as a worker rather than a long-lived request. Every seed file imported so far finished
@@ -1523,9 +1469,6 @@ select cron.schedule(
   $$
 );
 
--- ============================================================================
--- 0015_campaign_performance_index.sql
--- ============================================================================
 -- Phase 6: dashboard_campaign_performance's per-campaign unique-opens/unsubscribes aggregation
 -- needs count(distinct contact_id) grouped by campaign_id, filtered by brand_id — without a
 -- supporting index, Postgres has to Sort all of a brand's engagement_events rows (external merge,
@@ -1539,9 +1482,6 @@ select cron.schedule(
 create index if not exists events_brand_campaign_type_contact_idx
   on public.engagement_events (brand_id, campaign_id, event_type, contact_id);
 
--- ============================================================================
--- 0016_send_cron.sql
--- ============================================================================
 -- Phase 7: schedules send-worker via pg_cron + pg_net, same pattern as 0014_import_cron.sql. There
 -- is no client-side "instant kick" for sends (unlike import-start) — confirm_send is a plain RPC,
 -- not an Edge Function, so it has no privileged context to fire a service-role request from. A
@@ -1566,9 +1506,6 @@ select cron.schedule(
   $$
 );
 
--- ============================================================================
--- 0017_event_sync_cron.sql
--- ============================================================================
 -- Phase 8: schedules sync-events via pg_cron + pg_net, every minute per §4.2/§8 (event sync is a
 -- background poll against a third party, not latency-sensitive the way import/send progress is —
 -- 60s matches the plan exactly, unlike the 10s ticks used for the two worker functions). Same
@@ -1589,4 +1526,180 @@ select cron.schedule(
   );
   $$
 );
+
+-- Real user feedback on the deployed app: Karoo's and Marrakech's data ends 2026-04-17, so the
+-- fixed "last 30 days" window is always empty for them with no way to see anything earlier — the
+-- UI only ever said "no signups in this window" with no indication of when the data actually is,
+-- or any way to look further back. Adds a variable lookback window plus an extent function so the
+-- UI can offer 30/90-day and "all time" views and can name the brand's actual signup date range in
+-- the empty state instead of an unexplained wall of zeros.
+drop function if exists public.dashboard_signups_daily(uuid);
+
+create or replace function public.dashboard_signups_daily(p_brand_id uuid, p_days int default 30)
+returns table (day date, signups bigint)
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_tz text;
+  v_days int;
+begin
+  if not public.authorize(p_brand_id) then
+    raise insufficient_privilege using message = 'not a member of this brand';
+  end if;
+
+  -- Clamped, not trusted as-is: this is still a user-suppliable RPC argument, and an unbounded
+  -- p_days would let generate_series build an arbitrarily large row set.
+  v_days := least(greatest(p_days, 1), 1825);
+
+  select timezone into v_tz from public.brands where id = p_brand_id;
+
+  return query
+    with days as (
+      select generate_series(
+        (now() at time zone v_tz)::date - (v_days - 1) * interval '1 day',
+        (now() at time zone v_tz)::date,
+        interval '1 day'
+      )::date as day
+    ),
+    counts as (
+      select (signup_at at time zone v_tz)::date as day, count(*) as n
+      from public.contacts
+      where brand_id = p_brand_id
+        and signup_at is not null
+        and signup_at >= now() - (v_days || ' days')::interval
+        and signup_at <= now()
+      group by 1
+    )
+    select d.day, coalesce(c.n, 0)::bigint
+    from days d
+    left join counts c using (day)
+    order by d.day;
+end;
+$$;
+revoke all on function public.dashboard_signups_daily(uuid, int) from public;
+grant execute on function public.dashboard_signups_daily(uuid, int) to authenticated;
+
+-- Earliest/latest signup on file (in the brand's own timezone) — lets the UI say "most recent
+-- signup was 17 Apr 2026" instead of nothing, and size an "all time" window that actually covers
+-- the data rather than guessing a fixed number of days.
+create or replace function public.dashboard_signup_extent(p_brand_id uuid)
+returns table (earliest_signup date, latest_signup date)
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_tz text;
+begin
+  if not public.authorize(p_brand_id) then
+    raise insufficient_privilege using message = 'not a member of this brand';
+  end if;
+
+  select timezone into v_tz from public.brands where id = p_brand_id;
+
+  return query
+    select
+      min(signup_at at time zone v_tz)::date,
+      max(signup_at at time zone v_tz)::date
+    from public.contacts
+    where brand_id = p_brand_id and signup_at is not null;
+end;
+$$;
+revoke all on function public.dashboard_signup_extent(uuid) from public;
+grant execute on function public.dashboard_signup_extent(uuid) to authenticated;
+
+-- Real failure, found by the integration suite (tests/integration/share.test.ts): a freshly
+-- created share link's very first correct-password view returned 57014 ("canceling statement due
+-- to statement timeout") from share_view, not a logic bug — a debug script confirmed the token's
+-- SHA-256 round-trips byte-for-byte and the RPC call shape is exactly right; the call simply timed
+-- out. Same root cause class already fixed once for preview_send (0009_rpc.sql) and again for
+-- dashboard_campaign_performance (0010_metrics.sql, 0015's index): the authenticated/anon role's
+-- default 8s statement_timeout, combined with this session's own cumulative heavy real-project
+-- test load, and here also the deliberately expensive constant-time bcrypt compare. share_view was
+-- the one SECURITY DEFINER function in this build that never got the same override.
+create or replace function public.share_view(p_token_sha256_hex text, p_password text, p_ip_hash text)
+returns table (
+  campaign_name text,
+  channel text,
+  sent_at timestamptz,
+  reported_sent int,
+  reported_delivered int,
+  reported_bounced int,
+  reported_opens int,
+  unique_opens bigint,
+  open_rate numeric,
+  bounce_rate numeric
+)
+language plpgsql security definer
+set search_path = ''
+set statement_timeout = '15s'
+as $$
+declare
+  v_link public.share_links;
+  v_recent_attempts int;
+  v_ok boolean := false;
+  v_token_sha256 bytea;
+  v_dummy_hash constant text := '$2a$12$C6UzMDM.H6dfI/f/IKcEeO0drjOFB1TW1gvUiRCqR0h6QGpwoZTgS';
+begin
+  begin
+    v_token_sha256 := decode(p_token_sha256_hex, 'hex');
+  exception when others then
+    return;
+  end;
+
+  select count(*) into v_recent_attempts
+  from public.share_link_attempts
+  where attempted_at > now() - interval '10 minutes'
+    and (token_sha256 = v_token_sha256 or ip_hash = p_ip_hash);
+  if v_recent_attempts >= 20 then
+    return;
+  end if;
+
+  select * into v_link from public.share_links where token_sha256 = v_token_sha256;
+
+  if v_link.id is null then
+    perform extensions.crypt(p_password, v_dummy_hash);
+    insert into public.share_link_attempts (token_sha256, ip_hash, ok) values (v_token_sha256, p_ip_hash, false);
+    return;
+  end if;
+
+  v_ok := extensions.crypt(p_password, v_link.password_hash) = v_link.password_hash
+    and v_link.revoked_at is null
+    and (v_link.expires_at is null or v_link.expires_at > now());
+
+  insert into public.share_link_attempts (token_sha256, ip_hash, ok) values (v_token_sha256, p_ip_hash, v_ok);
+  if not v_ok then
+    return;
+  end if;
+
+  update public.share_links set view_count = view_count + 1, last_viewed_at = now() where id = v_link.id;
+
+  return query
+    select
+      c.name,
+      c.channel,
+      c.sent_at,
+      c.reported_sent,
+      c.reported_delivered,
+      c.reported_bounced,
+      c.reported_opens,
+      coalesce(e.unique_opens, 0),
+      case when coalesce(c.reported_delivered, 0) > 0
+        then round(coalesce(e.unique_opens, 0)::numeric / c.reported_delivered, 4)
+        else null end,
+      case when coalesce(c.reported_sent, 0) > 0
+        then round(coalesce(c.reported_bounced, 0)::numeric / c.reported_sent, 4)
+        else null end
+    from public.campaigns c
+    left join (
+      select engagement_events.campaign_id, count(distinct contact_id) filter (where event_type = 'opened') as unique_opens
+      from public.engagement_events
+      where campaign_id = v_link.campaign_id
+      group by engagement_events.campaign_id
+    ) e on e.campaign_id = c.id
+    where c.id = v_link.campaign_id;
+end;
+$$;
+revoke all on function public.share_view(text, text, text) from public;
+grant execute on function public.share_view(text, text, text) to anon;
 

@@ -14,5 +14,7 @@ describe("SignupsChart", () => {
       />,
     );
     expect(screen.getByRole("img")).toHaveAttribute("aria-label", "Daily signups for the last 3 days, from 2026-08-18 to 2026-09-16");
+    const bar = screen.getByTitle("2026-08-19: 5").firstElementChild as HTMLElement;
+    expect(bar).toHaveStyle({ height: "100%" });
   });
 });

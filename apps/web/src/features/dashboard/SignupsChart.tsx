@@ -34,7 +34,7 @@ export function SignupsChart({ points }: { points: DailySignups[] }): JSX.Elemen
       {bars.map((d) => (
         <div
           key={d.day}
-          className="group flex flex-1 flex-col items-center justify-end"
+          className="group flex h-full flex-1 flex-col items-center justify-end"
           title={bucketed ? `Week of ${d.day}: ${d.signups}` : `${d.day}: ${d.signups}`}
         >
           <div
