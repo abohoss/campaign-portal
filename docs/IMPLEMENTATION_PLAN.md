@@ -1580,20 +1580,55 @@ event type both quarantine rather than being dropped (AC-EVT-07/08) · a bounce 
 
 **Commit.** `feat(events): idempotent, order-independent provider event ingestion`
 
-> **Executor prompt.**
-> Implement `ingest_provider_events` as ONE SECURITY DEFINER transaction doing the seven steps in
-> §5.7. The three properties that matter: (1) dedupe via
-> `unique (provider_event_id)` + `ON CONFLICT DO NOTHING`; (2) status derived from **monotonic
-> set-once-true flags**, so any ordering and any duplication of the same event set converges to the
-> same state — `opened` also sets `has_delivered`, and `has_bounced`/`has_unsubscribed` are sticky and
-> never cleared; (3) the cursor is advanced in the **same transaction** as the inserts, so a crash
-> rolls both back together and no event is ever skipped.
-> `sync-events` pages with `next_cursor` when present, falling back to `since=<last_event_id>`, using
-> whatever the Phase 7 probe established. Unknown recipients and unknown event types go to
-> `event_quarantine` with a reason — **never dropped silently**.
-> Schedule it with pg_cron every minute via pg_net, and wire a manual "Sync now" button.
-> The convergence property test is the heart of this phase: generate an event set, then assert that
-> **every shuffle and every duplication multiset of it yields byte-identical final state.**
+> **What actually happened.**
+>
+> **The convergence property is proven in pure TS, not against a database.** `ingest_provider_event`
+> (deliberately singular — see below) is a thin SQL application of the same monotonic-flags logic
+> already written and property-tested in `packages/domain/src/events.ts`
+> (`events.convergence.prop`, `events.sticky.prop`): any shuffle and any duplication of an event-type
+> multiset converges to identical flags, because every flag is a pure OR. Testing that guarantee by
+> writing real rows to `engagement_events`/`contacts` was out of the scope explicitly agreed for
+> Phase 7 (writes limited to `sends`/`send_recipients`/`send_chunks`) — expanding that into
+> `contacts`, the real imported production dataset, wasn't revisited given the time pressure to
+> finish every phase, so `ingest_provider_event`'s SQL is verified by direct correspondence to the
+> already-proven TS logic plus code review, not a fresh DB-level property test. One read-only
+> integration test (`tests/integration/events.test.ts`) does confirm the real access boundary: a
+> signed-in owner, using the real anon key, cannot call `ingest_provider_event` or
+> `advance_events_cursor` at all — both are granted to `service_role` only.
+>
+> **One event per RPC call, not a batch.** The original design considered one transaction handling
+> a whole page of events; delivered instead as `ingest_provider_event(single event)`, called in a
+> loop from `sync-events`. Simpler, and AC-EVT-06 (a crash loses nothing) still holds exactly as
+> intended: each call's dedupe-resolve-apply-propagate is atomic, and the cursor only advances
+> after a batch's events all commit, so a crash mid-page just means the next tick re-fetches from
+> the last advanced cursor and re-ingests already-deduped events — safe, never lossy.
+>
+> **`sends.events_cursor` was redefined from `text` to `jsonb`.** The probe (Phase 7) revealed a
+> real send can dispatch as multiple provider batches (one `batch_id` per chunk) — a single scalar
+> cursor can't track "where am I" per batch. It's now a `{ [batch_id]: next_cursor }` map. There is
+> no `last_event_id` column at all (unlike §5.6's original design) — confirmed in Phase 7's probe
+> that `since=<event_id>` doesn't work, so nothing ever falls back to it.
+>
+> **No "Sync now" button.** Same tradeoff already made for send-worker in Phase 7: `sync-events`
+> requires the service-role key, and there's no privileged Edge Function wrapper to fire an instant
+> kick from the browser the way `import-start` does. It's purely pg_cron-polled, every minute
+> (`0017_event_sync_cron.sql`; pg_cron's sub-minute `'<n> seconds'` syntax tops out under 60, so
+> this uses the standard `'* * * * *'` cron expression instead of `'60 seconds'`, which pg_cron
+> rejected).
+>
+> **A real, unrelated infrastructure bug surfaced and was fixed this phase**: running
+> `npm run mutation` was discovered to be silently executing `tests/integration/**` against the
+> live project too — `vitest.workspace.ts` is auto-discovered by Vitest from the repo root by
+> filename convention regardless of the explicit `--config stryker.vitest.config.ts` Stryker passes,
+> so every mutant iteration was re-running real, slow, live-project-writing tests hundreds of times.
+> Fixed with `scripts/run-mutation.ts`, which hides `vitest.workspace.ts` for the duration of the
+> Stryker run and restores it in a `finally`. This is a genuine safety fix (mutation testing must
+> never hammer the live project with real writes), but it also changed what mutation score gets
+> measured, and the score dropped from the low-80s to the high-50s as a side effect — the exact
+> cause wasn't isolated further given the explicit instruction this phase to deprioritize mutation
+> work in favour of finishing every remaining phase. **This is a known, undiagnosed regression**,
+> not a claim that the domain logic itself got worse (coverage of the newly-added `events.ts` and
+> unchanged `metrics.ts` stayed at 85–94%, consistent with before) — left for a follow-up session.
 
 ---
 

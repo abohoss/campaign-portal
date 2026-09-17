@@ -8,6 +8,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["packages/domain/src/**/*.test.ts"],
+    exclude: ["**/node_modules/**", "**/dist/**", "tests/integration/**"],
     environment: "node",
   },
 });

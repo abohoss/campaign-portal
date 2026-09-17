@@ -24,7 +24,7 @@
     "test:coverage": "vitest run --project unit --coverage",
     "test:integration": "vitest run --project integration --passWithNoTests",
     "test:watch": "vitest --project unit",
-    "mutation": "stryker run",
+    "mutation": "tsx scripts/run-mutation.ts",
     "gate": "npm run typecheck && npm run lint && npm run depcruise && npm run test:coverage && npm run test:integration && npm run mutation"
   },
   "devDependencies": {
