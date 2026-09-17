@@ -63,8 +63,31 @@ describe.skipIf(!hasCredentials)("send state machine against the live project (s
     SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY!;
     admin = createClient(SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY!);
     const credentials = JSON.parse(readFileSync(CREDENTIALS_JSON_PATH, "utf-8")) as CredentialEntry[];
-    ownerCred = credentials.find((c) => c.role === "owner")!;
-    analystCred = credentials.find((c) => c.role === "analyst" && c.brand === ownerCred.brand);
+    const rolePairs = credentials
+      .filter((c) => c.role === "owner")
+      .map((owner) => ({ owner, analyst: credentials.find((c) => c.role === "analyst" && c.brand === owner.brand) }))
+      .filter((pair): pair is { owner: CredentialEntry; analyst: CredentialEntry } => pair.analyst !== undefined);
+    expect(rolePairs.length, "no brand has both an owner and analyst account").toBeGreaterThan(0);
+
+    const { data: brands, error: brandsError } = await admin.from("brands").select("id, slug");
+    expect(brandsError, "brand lookup").toBeNull();
+    const brandIdBySlug = new Map((brands ?? []).map((brand) => [brand.slug as string, brand.id as string]));
+
+    const contactCounts = await Promise.all(
+      rolePairs.map(async (pair) => {
+        const brandId = brandIdBySlug.get(pair.owner.brand);
+        expect(brandId, `${pair.owner.brand}: brand lookup`).toBeDefined();
+        const { count, error } = await admin
+          .from("contacts")
+          .select("id", { count: "exact", head: true })
+          .eq("brand_id", brandId!);
+        expect(error, `${pair.owner.brand}: contact count`).toBeNull();
+        return { pair, count: count ?? Number.MAX_SAFE_INTEGER };
+      }),
+    );
+    contactCounts.sort((a, b) => a.count - b.count);
+    ownerCred = contactCounts[0]!.pair.owner;
+    analystCred = contactCounts[0]!.pair.analyst;
     expect(ownerCred, "docs/CREDENTIALS.local.json has no owner account — run scripts/provision-users.ts").toBeDefined();
   });
 
