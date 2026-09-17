@@ -23,30 +23,38 @@ see the script's header comment for the Windows registry-env-var gotcha on this 
 ```
 $ npm run verify:rls
 
-Checked 6 table(s) in public schema on the linked project:
+Checked 15 table(s) in public schema on the linked project:
 
   allowed_emails         RLS✓  FORCED✓  0 policies  no SELECT policy
   brands                 RLS✓  FORCED✓  1 policy  calls authorize()✓
   campaigns              RLS✓  FORCED✓  3 policies  calls authorize()✓
   contacts               RLS✓  FORCED✓  3 policies  calls authorize()✓
   engagement_events      RLS✓  FORCED✓  3 policies  calls authorize()✓
+  event_quarantine       RLS✓  FORCED✓  1 policy  calls authorize()✓
+  import_errors          RLS✓  FORCED✓  1 policy  calls authorize()✓
+  import_runs            RLS✓  FORCED✓  2 policies  calls authorize()✓
   memberships            RLS✓  FORCED✓  1 policy  documented exception: scoped directly by
                           `user_id = auth.uid()` — using authorize() here would be circular,
                           since authorize() itself queries memberships
+  provider_events_raw    RLS✓  FORCED✓  1 policy  calls authorize()✓
+  send_chunks            RLS✓  FORCED✓  1 policy  calls authorize()✓
+  send_recipients        RLS✓  FORCED✓  1 policy  calls authorize()✓
+  sends                  RLS✓  FORCED✓  2 policies  calls authorize()✓
+  share_link_attempts    RLS✓  FORCED✓  0 policies  no SELECT policy
+  share_links            RLS✓  FORCED✓  0 policies  no SELECT policy
 
 All tables: RLS enabled, forced, and every SELECT policy calls authorize(). ✅
 ```
 
-Captured: 2026-09-16, immediately after `supabase db push` applied migrations `0001`–`0004` to
-project `dkzfernckoybcnwoxrbu` for the first time. Re-run after every migration that touches RLS
-and re-paste the output above.
+Captured: 2026-09-17 against project `dkzfernckoybcnwoxrbu`, after all current migrations were
+applied. Re-run after every migration that touches RLS and refresh the output above.
 
 ## What this does and doesn't prove
 
 - **Proves**: the structural guarantee is live on the actual project right now — RLS is not just
   declared in a migration file, it is enabled and forced on every table, and the policy
   definitions genuinely reference `authorize()` rather than something weaker.
-- **Update (Phase 4): the behavioural proof below landed.** Five of six real accounts are now
+- **Update (Phase 4): the behavioural proof below landed.** Six real accounts are now
   provisioned (`docs/MANUAL_SETUP.md`), so `tests/integration/auth.test.ts` signs in as each with
   the real anon key and asserts zero foreign-brand rows come back from every brand-scoped table —
   genuinely proving AC-ISO-02, not just its structural precondition. Still read-only, still no

@@ -33,11 +33,15 @@ function AuthenticatedApp(): JSX.Element {
   return (
     <AuthGate>
       {(membership) => (
-        <div className="min-h-screen bg-background text-foreground">
-          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-3 sm:px-6">
-            <div>
-              <h1 className="text-base font-semibold leading-tight">{membership.brandName}</h1>
+        <div className="min-h-screen text-foreground">
+          <header className="relative flex flex-wrap items-center justify-between gap-2 border-b border-border border-t-4 border-t-primary/80 bg-card/95 px-4 py-3 shadow-sm backdrop-blur sm:px-6">
+            <div className="flex items-center gap-3">
+              <span aria-hidden="true" className="h-9 w-1 rounded-full bg-primary" />
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">Velocity Growth</p>
+                <h1 className="text-base font-semibold leading-tight">{membership.brandName}</h1>
               <p className="text-xs capitalize text-muted-foreground">Signed in as {membership.role}</p>
+              </div>
             </div>
             <button
               type="button"
@@ -47,7 +51,7 @@ function AuthenticatedApp(): JSX.Element {
               Sign out
             </button>
           </header>
-          <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card px-2 sm:px-4">
+          <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card/80 px-2 shadow-[0_1px_8px_hsl(177_55%_24%/0.04)] backdrop-blur sm:px-4">
             <NavLink to="/" end className={NAV_LINK_CLASS}>
               Dashboard
             </NavLink>
@@ -61,7 +65,9 @@ function AuthenticatedApp(): JSX.Element {
               Import
             </NavLink>
           </nav>
-          <AppRoutes membership={membership} />
+          <main>
+            <AppRoutes membership={membership} />
+          </main>
         </div>
       )}
     </AuthGate>

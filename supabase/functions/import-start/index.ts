@@ -5,8 +5,17 @@
 // (lower-privilege) session rather than the service-role key.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, "content-type": "application/json" },
+  });
 }
 
 interface StartBody {
@@ -32,6 +41,8 @@ function isValidBody(b: unknown): b is StartBody {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
+
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return json({ error: "missing Authorization header" }, 401);
 
