@@ -7,7 +7,7 @@ lands; don't let this drift from reality.
 |---|---|---|---|
 | 1 | Supabase cloud project | ✅ Done (Phase 3) | `dkzfernckoybcnwoxrbu`, org `ngqaviulocvfpukhomwe`, `eu-central-1`. Migrations `0001`–`0004`, `0011` + `supabase/seed.sql` applied. |
 | 2 | Six Google-capable accounts | ✅ **All 6 provisioned** | See below. |
-| 3 | Google OAuth client | 🟡 In progress (you) | Google Cloud Console (browser + your Google account — can't be done headlessly). Redirect URI: `https://dkzfernckoybcnwoxrbu.supabase.co/auth/v1/callback`. Client ID + secret go into the Supabase dashboard → Auth → Providers → Google. The sign-in button is already built and calls `signInWithOAuth({provider:'google'})' — it'll work the moment the provider is configured. |
+| 3 | Google OAuth client | ✅ Done and tested | Configured in Google Cloud Console and Supabase Auth → Providers → Google. The Supabase callback is `https://dkzfernckoybcnwoxrbu.supabase.co/auth/v1/callback`; the Vercel site URL is allowlisted in Supabase Auth URL Configuration. All six accounts are Google test users, and Google sign-in was verified from the deployed app. |
 | 4 | ~~Disable public signup~~ | ✅ **Corrected, not needed** | Tested directly: `[auth.email] enable_signup=false` also blocks sign-*in* for existing accounts (not just registration) — reverted to `true`. The `before_user_created` hook alone is sufficient and verified (see Phase 4 note in the plan). |
 | 5 | Register the auth hook | ✅ Done (Phase 4) | `public.before_user_created_hook`, pushed via `supabase config push`. Verified against the live project: rejects a public `signUp()` for a non-allowlisted email; does NOT gate the Admin API (by design — see plan). |
 | 6 | Supabase secrets (`PROVIDER_API_KEY` etc.) | ✅ Done (Phase 7) | Pushed via `supabase secrets set --env-file` from a throwaway temp file (deleted immediately after, value never printed to any log this session kept). `send-worker` reads both at runtime. |
@@ -34,8 +34,8 @@ Verified for real (`tests/integration/auth.test.ts`, run against the live projec
 in with the real anon key and each sees exactly their own brand — zero foreign-brand rows across
 `contacts`, `campaigns`, `engagement_events`, `memberships`.
 
-All six should also be added as **test users** on the Google OAuth consent screen (task #3) so
-Google sign-in works for them while the app stays in Testing mode.
+All six are added as **test users** on the Google OAuth consent screen, and Google sign-in has
+been verified from the deployed app while the OAuth consent screen remains in Testing mode.
 
 ## Secrets inventory (never committed — tracked here by name only)
 

@@ -3,6 +3,7 @@
 **What I tried to break before sending it.** Signed in as all six real accounts directly against
 PostgREST with the anon key and read every table checking for cross-brand rows. Fired 20 real
 simultaneous `confirm_send` calls at one draft against the live project — exactly one approved.
+Tested Google OAuth sign-in from the deployed Vercel app with the configured allowlisted accounts.
 Probed the real messaging provider (`docs/PROVIDER_PROBE.md`) and found it leaks a real
 cross-tenant event into an unrelated batch's poll response; fixed `ingest_provider_event` to
 resolve every recipient scoped to the send being synced, not just by id. Threw a malformed,
