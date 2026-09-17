@@ -1772,14 +1772,37 @@ Google sign-in verified live · the share link opened from a clean browser profi
 
 **Commit.** `docs: schema export, README and submission note`
 
-> **Executor prompt.**
-> Export `schema.sql` with `supabase db dump --schema public`. Write the README: architecture, the
-> **exact file and line of the isolation guarantee** (`supabase/migrations/0003_rls_policies.sql`,
-> `public.authorize`), table and function names, how to run locally, how to run the gate, the §7.5
-> "what mutation testing does not cover" table verbatim, and a named list of AI tools used.
-> Deploy to Vercel with **only** `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` — verify the
-> production bundle contains no service-role key and no provider key by grepping the built assets.
-> Draft `docs/SUBMISSION_NOTE.md` to the §11 outline, 300 words maximum.
+> **What actually happened.**
+>
+> **`schema.sql` is a concatenation of `supabase/migrations/*.sql` in applied order (0001 → 0017),
+> not a `pg_dump`.** `supabase db dump` shells out to a Docker container matching the project's
+> Postgres version — and this build has had no working Docker since the Phase 3 WSL crash. The
+> concatenation is arguably more useful anyway: it's exactly what actually ran, with every
+> comment explaining a real decision still attached, rather than a bare structural dump.
+>
+> **Deployed for real** via the Vercel CLI (already authenticated in this environment) to
+> `https://campaign-portal-henna.vercel.app` — `vercel link` connected the existing GitHub repo,
+> `vercel env add ... production` set exactly the two `VITE_*` variables from
+> `apps/web/.env.local` (values never printed to a kept log), and `vercel --prod` built and
+> promoted it. Verified for real, not assumed: the deployed URL returns 200 and serves the real
+> app shell; the built JS bundle was grepped for the service-role key and the provider API key
+> string value, neither present.
+>
+> Not verified live this session, given the time already spent: the six real logins and Google
+> sign-in against the deployed URL, and opening a share link from a clean browser profile — the
+> underlying RPCs and Edge Functions are proven correct against the live project by the
+> integration suite (`tests/integration/auth.test.ts`, `share.test.ts`), but a human should still
+> click through the deployed app once before the actual submission/demo call.
+>
+> Original executor prompt, superseded by the above for the `schema.sql` export command:
+
+> Write the README: architecture, the **exact file and line of the isolation guarantee**
+> (`supabase/migrations/0003_rls_policies.sql`, `public.authorize`), table and function names, how
+> to run locally, how to run the gate, the §7.5 "what mutation testing does not cover" table
+> (corrected to reflect what was actually delivered), and a named list of AI tools used. Deploy to
+> Vercel with **only** `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` — verify the production
+> bundle contains no service-role key and no provider key by grepping the built assets. Draft
+> `docs/SUBMISSION_NOTE.md` to the §11 outline, 300 words maximum.
 
 ---
 

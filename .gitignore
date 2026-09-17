@@ -31,3 +31,6 @@ reports/mutation/
 
 # generated — run `npm run sync:domain` before `supabase functions deploy`
 supabase/functions/_shared/domain/
+
+.vercel
+.env*
