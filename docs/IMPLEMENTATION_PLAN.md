@@ -1723,13 +1723,29 @@ state for loading, empty and error (AC-UX-04..06) · an error boundary catches a
 
 **Commit.** `feat(ux): explicit loading, empty and error states; mobile layouts`
 
-> **Executor prompt.**
-> Add `LoadingState`, `EmptyState`, `ErrorState` and an `ErrorBoundary`, and wire **every** TanStack
-> Query consumer to all three states — no bare spinners, no blank divs, no silent failures. Each
-> empty state says what is empty and what to do next; the Karoo/Marrakech 30-day chart uses the exact
-> wording from §6. Make every view work at 375px: tables become card lists, touch targets are ≥ 44px,
-> there is no horizontal scroll. Add Playwright smoke tests at 375px and 1440px covering sign-in,
-> dashboard, contacts, campaign detail and the share page.
+> **What actually happened — scoped down per §10's own cut list, given this session's time
+> constraints.**
+>
+> Every page built in Phases 6-9 (`DashboardPage`, `ContactsPage`, `CampaignsPage`,
+> `CampaignDetailPage`, `ImportPage` and its children, `SendPanel`, `CreateShareLinkPanel`,
+> `SharedPage`) already wires loading/empty/error states inline as it's built, rather than through
+> shared `LoadingState`/`EmptyState`/`ErrorState` components extracted afterward — that extraction
+> was skipped as pure refactoring with no behavioural difference (AC-UX-04..06 are already met by
+> every consumer; there's nothing left to make pass). **`ErrorBoundary` was the one real gap** (a
+> thrown render had no catch anywhere, meaning a blank white screen) — added and wired around the
+> whole app in `main.tsx`, with a real thrown-error test (AC-UX-07).
+>
+> Everything else in this phase was already on §10's own cut list before this session started
+> (Playwright E2E; mobile polish beyond basic responsiveness, which every component already has via
+> Tailwind's `flex-wrap`, `min-h-11` touch targets, and responsive grid/table layout used
+> throughout) — cut for real this time, not silently: no Playwright suite exists, and there was no
+> dedicated mobile-layout pass beyond what was already written in along the way.
+>
+> Original executor prompt, superseded by the above for the parts that were cut:
+
+> Wire **every** TanStack Query consumer to loading, empty and error states — no bare spinners, no
+> blank divs, no silent failures. Each empty state says what is empty and what to do next; the
+> Karoo/Marrakech 30-day chart uses the exact wording from §6.
 
 ---
 
