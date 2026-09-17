@@ -13,6 +13,29 @@ function formatSpend(spend: number | null): string {
   return spend === null ? "—" : `$${spend.toFixed(2)}`;
 }
 
+/** Turns the two boolean data-quality flags into the actual numbers that tripped them, so the
+ *  banner is self-explanatory instead of a bare "doesn't reconcile" with no way to see why —
+ *  found from real user feedback: the generic banner pointed at nothing visible on screen, since
+ *  reported_opens/reported_clicks (what the check actually compares) weren't rendered anywhere. */
+function reconciliationNotes(c: CampaignPerformance): string[] {
+  const notes: string[] = [];
+  if (c.opensExceedDelivered) {
+    notes.push(
+      `Reported opens (${(c.reportedOpens ?? 0).toLocaleString()}) exceed reported delivered ` +
+        `(${(c.reportedDelivered ?? 0).toLocaleString()}) in the brand's own export.`,
+    );
+  }
+  if (c.reportedTotalsInconsistent) {
+    const delivered = c.reportedDelivered ?? 0;
+    const bounced = c.reportedBounced ?? 0;
+    notes.push(
+      `Reported delivered + bounced (${delivered.toLocaleString()} + ${bounced.toLocaleString()} = ` +
+        `${(delivered + bounced).toLocaleString()}) doesn't equal reported sent (${(c.reportedSent ?? 0).toLocaleString()}).`,
+    );
+  }
+  return notes;
+}
+
 /** A campaign with no events at all (e.g. real campaigns CMP-014, KIL-0033..035) must render as a
  *  legitimate zero here, not a spinner or a crash (AC-UX-02) — every count below defaults to 0/—
  *  rather than being conditionally omitted. */
@@ -33,22 +56,33 @@ export function CampaignDetailPage({ membership }: { membership: Membership }): 
     return <p className="p-4 text-sm text-muted-foreground">Campaign not found.</p>;
   }
 
+  const notes = reconciliationNotes(campaign);
+
   return (
-    <div className="mx-auto max-w-2xl space-y-4 p-4">
-      <Link to="/campaigns" className="text-sm text-muted-foreground underline">
+    <div className="mx-auto max-w-2xl space-y-4 p-4 sm:p-6">
+      <Link to="/campaigns" className="text-sm text-muted-foreground underline hover:no-underline">
         ← Campaigns
       </Link>
-      <h2 className="text-lg font-semibold">{campaign.name}</h2>
+      <h2 className="text-xl font-semibold tracking-tight">{campaign.name}</h2>
       <p className="text-sm text-muted-foreground">
         {campaign.externalId} · {campaign.channel}
         {campaign.sentAt ? ` · sent ${new Date(campaign.sentAt).toLocaleDateString()}` : ""}
       </p>
 
-      {(campaign.opensExceedDelivered || campaign.reportedTotalsInconsistent) && (
-        <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          This campaign's reported figures don't reconcile internally. Shown as supplied, not
-          reconciled.
-        </p>
+      {notes.length > 0 && (
+        <div role="alert" className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-medium">This campaign's reported figures don't reconcile internally:</p>
+          <ul className="list-disc space-y-1 pl-5">
+            {notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+          <p>
+            These are the brand's own export numbers, shown as supplied — never silently corrected.
+            The "Unique opens"/"Total opens" figures below are computed independently from the
+            engagement log and aren't affected by this.
+          </p>
+        </div>
       )}
 
       <CampaignMetricsGrid campaign={campaign} />
@@ -60,7 +94,7 @@ export function CampaignDetailPage({ membership }: { membership: Membership }): 
 
 function CampaignMetricsGrid({ campaign }: { campaign: CampaignPerformance }): JSX.Element {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       <Metric label="Reported sent" value={campaign.reportedSent} />
       <div>
         <Metric label="Delivered" value={campaign.reportedDelivered} />
@@ -71,8 +105,16 @@ function CampaignMetricsGrid({ campaign }: { campaign: CampaignPerformance }): J
       </div>
       <Metric label="Reported bounced" value={campaign.reportedBounced} />
       <div>
+        <Metric label="Reported opens" value={campaign.reportedOpens} />
+        <CountingNote>
+          As supplied in the brand's export — this is what "opens exceed delivered" (above, if
+          shown) compares, not the computed figure below.
+        </CountingNote>
+      </div>
+      <Metric label="Reported clicks" value={campaign.reportedClicks} />
+      <div>
         <Metric label="Unique opens" value={campaign.uniqueOpens} />
-        <CountingNote>Distinct people who opened at least once.</CountingNote>
+        <CountingNote>Distinct people who opened at least once, from the engagement log.</CountingNote>
       </div>
       <div>
         <Metric label="Total opens" value={campaign.totalOpens} />
@@ -97,7 +139,7 @@ function CampaignMetricsGrid({ campaign }: { campaign: CampaignPerformance }): J
 
 function Metric({ label, value }: { label: string; value: number | string | null }): JSX.Element {
   return (
-    <div className="rounded-lg border border-border p-3">
+    <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
       <p className="text-lg font-semibold tabular-nums">{value ?? 0}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>

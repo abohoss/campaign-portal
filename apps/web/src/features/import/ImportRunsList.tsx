@@ -54,13 +54,15 @@ export function ImportRunsList({
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{run.filename}</span>
                 <span
-                  className={
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                     run.status === "failed"
-                      ? "text-destructive"
+                      ? "bg-destructive/10 text-destructive"
                       : run.status === "succeeded"
-                        ? "text-muted-foreground"
-                        : ""
-                  }
+                        ? "bg-emerald-100 text-emerald-800"
+                        : run.status === "partial"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-secondary text-secondary-foreground"
+                  }`}
                 >
                   {STATUS_LABEL[run.status]}
                 </span>

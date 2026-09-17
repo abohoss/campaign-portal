@@ -8,9 +8,9 @@ export function ImportPage({ membership }: { membership: Membership }): JSX.Elem
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-4">
+    <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
       <div>
-        <h2 className="text-lg font-semibold">Import data</h2>
+        <h2 className="text-xl font-semibold tracking-tight">Import data</h2>
         <p className="text-sm text-muted-foreground">
           Upload a contacts or campaigns export. Re-uploading the same file is safe — matching
           rows are updated, not duplicated.

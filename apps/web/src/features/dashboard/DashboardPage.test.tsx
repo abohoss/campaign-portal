@@ -1,10 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { DashboardPage } from "./DashboardPage.js";
 import * as useDashboardTotalsModule from "./useDashboardTotals.js";
 import * as useDashboardSignupsModule from "./useDashboardSignups.js";
+import * as useDashboardSignupExtentModule from "./useDashboardSignupExtent.js";
 import * as useCampaignPerformanceModule from "../campaigns/useCampaignPerformance.js";
 import type { Membership } from "../auth/useMembership.js";
 
@@ -24,6 +25,12 @@ describe("DashboardPage", () => {
     vi.restoreAllMocks();
     vi.spyOn(useCampaignPerformanceModule, "useCampaignPerformance").mockReturnValue({
       data: [],
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as never);
+    vi.spyOn(useDashboardSignupExtentModule, "useDashboardSignupExtent").mockReturnValue({
+      data: { earliestSignup: null, latestSignup: null },
       isLoading: false,
       isError: false,
       error: null,
@@ -103,7 +110,52 @@ describe("DashboardPage", () => {
     } as never);
 
     renderWithClient(<DashboardPage membership={membership} />);
-    expect(screen.getByText(/no signups in this window/i)).toBeInTheDocument();
+    expect(screen.getByText(/no signups in the last 30 days/i)).toBeInTheDocument();
+    expect(screen.getByText(/no signups on file yet/i)).toBeInTheDocument();
+  });
+
+  it("names the brand's most recent signup date when the window is empty but data exists earlier", () => {
+    vi.spyOn(useDashboardTotalsModule, "useDashboardTotals").mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: { totalCustomers: 100, contactable: 50 },
+      error: null,
+    } as never);
+    vi.spyOn(useDashboardSignupsModule, "useDashboardSignups").mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: daySeries(() => 0),
+      error: null,
+    } as never);
+    vi.spyOn(useDashboardSignupExtentModule, "useDashboardSignupExtent").mockReturnValue({
+      data: { earliestSignup: "2026-02-01", latestSignup: "2026-04-17" },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as never);
+
+    renderWithClient(<DashboardPage membership={membership} />);
+    expect(screen.getByText(/4\/17\/2026|17\/04\/2026/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /view all time/i })).toBeInTheDocument();
+  });
+
+  it("switches the signups window when a period button is clicked", () => {
+    vi.spyOn(useDashboardTotalsModule, "useDashboardTotals").mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: { totalCustomers: 100, contactable: 50 },
+      error: null,
+    } as never);
+    const signups = vi.spyOn(useDashboardSignupsModule, "useDashboardSignups").mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: daySeries(() => 0),
+      error: null,
+    } as never);
+
+    renderWithClient(<DashboardPage membership={membership} />);
+    fireEvent.click(screen.getByRole("button", { name: "90 days" }));
+    expect(signups).toHaveBeenLastCalledWith("b1", 90);
   });
 
   it("renders the signups chart when at least one day is non-zero", () => {

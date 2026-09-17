@@ -37,7 +37,7 @@ export function ImportUploadForm({ brandId }: { brandId: string }): JSX.Element 
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-border p-4">
+    <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-border bg-card p-4 shadow-sm">
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label htmlFor="import-kind" className="block text-sm font-medium">
@@ -47,7 +47,7 @@ export function ImportUploadForm({ brandId }: { brandId: string }): JSX.Element 
             id="import-kind"
             value={kind}
             onChange={(e) => setKind(e.target.value as "contacts" | "campaigns")}
-            className="mt-1 min-h-11 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="mt-1 min-h-11 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="contacts">Contacts</option>
             <option value="campaigns">Campaigns</option>
@@ -62,7 +62,7 @@ export function ImportUploadForm({ brandId }: { brandId: string }): JSX.Element 
             type="file"
             accept=".csv"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="mt-1 block w-full min-h-11 text-sm"
+            className="mt-1 block w-full min-h-11 text-sm file:mr-3 file:min-h-11 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-accent"
             aria-invalid={!!fieldError}
             aria-describedby={fieldError ? "import-file-error" : undefined}
           />
@@ -70,7 +70,7 @@ export function ImportUploadForm({ brandId }: { brandId: string }): JSX.Element 
         <button
           type="submit"
           disabled={submitting}
-          className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {submitting ? "Uploading…" : "Import"}
         </button>

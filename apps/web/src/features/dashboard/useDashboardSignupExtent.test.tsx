@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useDashboardSignups } from "./useDashboardSignups.js";
+import { useDashboardSignupExtent } from "./useDashboardSignupExtent.js";
 import { supabase } from "@/lib/supabase.js";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -10,35 +10,35 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-describe("useDashboardSignups", () => {
+describe("useDashboardSignupExtent", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("maps rows and coerces signups to a number", async () => {
+  it("maps the earliest/latest signup row", async () => {
     const rpc = vi.spyOn(supabase, "rpc").mockResolvedValue({
-      data: [{ day: "2026-09-01", signups: "3" }],
+      data: [{ earliest_signup: "2026-02-01", latest_signup: "2026-04-17" }],
       error: null,
     } as never);
 
-    const { result } = renderHook(() => useDashboardSignups("brand-1", 90), { wrapper });
+    const { result } = renderHook(() => useDashboardSignupExtent("brand-1"), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([{ day: "2026-09-01", signups: 3 }]);
-    expect(rpc).toHaveBeenCalledWith("dashboard_signups_daily", { p_brand_id: "brand-1", p_days: 90 });
+    expect(result.current.data).toEqual({ earliestSignup: "2026-02-01", latestSignup: "2026-04-17" });
+    expect(rpc).toHaveBeenCalledWith("dashboard_signup_extent", { p_brand_id: "brand-1" });
   });
 
-  it("defaults a null data payload to an empty array", async () => {
+  it("defaults a null/empty payload to null dates rather than throwing", async () => {
     vi.spyOn(supabase, "rpc").mockResolvedValue({ data: null, error: null } as never);
 
-    const { result } = renderHook(() => useDashboardSignups("brand-1", 30), { wrapper });
+    const { result } = renderHook(() => useDashboardSignupExtent("brand-1"), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data).toEqual({ earliestSignup: null, latestSignup: null });
   });
 
   it("surfaces an RPC error as isError", async () => {
     vi.spyOn(supabase, "rpc").mockResolvedValue({ data: null, error: new Error("boom") } as never);
 
-    const { result } = renderHook(() => useDashboardSignups("brand-1", 30), { wrapper });
+    const { result } = renderHook(() => useDashboardSignupExtent("brand-1"), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
   });
 });

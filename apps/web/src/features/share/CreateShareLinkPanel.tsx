@@ -25,7 +25,7 @@ export function CreateShareLinkPanel({ campaignId, isOwner }: { campaignId: stri
   }
 
   return (
-    <div className="space-y-2 rounded-lg border border-border p-4">
+    <div className="space-y-2 rounded-lg border border-border bg-card p-4 shadow-sm">
       <h3 className="text-sm font-medium">Share with a client</h3>
       {createdLink ? (
         <div className="space-y-1">
@@ -36,7 +36,7 @@ export function CreateShareLinkPanel({ campaignId, isOwner }: { campaignId: stri
             readOnly
             value={createdLink}
             onFocus={(e) => e.currentTarget.select()}
-            className="w-full rounded-md border border-input bg-muted px-3 py-2 text-xs"
+            className="w-full rounded-md border border-input bg-muted px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
       ) : (
@@ -52,13 +52,13 @@ export function CreateShareLinkPanel({ campaignId, isOwner }: { campaignId: stri
               onChange={(e) => setPassword(e.target.value)}
               minLength={8}
               required
-              className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
           <button
             type="submit"
             disabled={create.isPending}
-            className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {create.isPending ? "Creating…" : "Create share link"}
           </button>

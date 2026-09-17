@@ -54,12 +54,14 @@ export function SharedPage(): JSX.Element {
 
   if (result) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 p-4">
-        <h1 className="text-lg font-semibold">{result.campaignName}</h1>
-        <p className="text-sm text-muted-foreground">
-          {result.channel}
-          {result.sentAt ? ` · sent ${new Date(result.sentAt).toLocaleDateString()}` : ""}
-        </p>
+      <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center space-y-4 p-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{result.campaignName}</h1>
+          <p className="text-sm text-muted-foreground">
+            {result.channel}
+            {result.sentAt ? ` · sent ${new Date(result.sentAt).toLocaleDateString()}` : ""}
+          </p>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <Metric label="Delivered" value={result.reportedDelivered ?? 0} />
           <Metric label="Unique opens" value={result.uniqueOpens} />
@@ -71,9 +73,12 @@ export function SharedPage(): JSX.Element {
   }
 
   return (
-    <div className="mx-auto max-w-sm space-y-4 p-4">
-      <h1 className="text-lg font-semibold">Campaign results</h1>
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-2">
+    <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center space-y-4 p-4">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Campaign results</h1>
+        <p className="text-sm text-muted-foreground">Enter the password you were given to view this campaign's results.</p>
+      </div>
+      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-2 rounded-lg border border-border bg-card p-4 shadow-sm">
         <label htmlFor="shared-password" className="block text-sm font-medium">
           Password
         </label>
@@ -83,12 +88,13 @@ export function SharedPage(): JSX.Element {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          autoFocus
+          className="min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         />
         <button
           type="submit"
           disabled={loading}
-          className="min-h-11 w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          className="min-h-11 w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {loading ? "Checking…" : "View results"}
         </button>
@@ -104,7 +110,7 @@ export function SharedPage(): JSX.Element {
 
 function Metric({ label, value }: { label: string; value: number | string }): JSX.Element {
   return (
-    <div className="rounded-lg border border-border p-3">
+    <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
       <p className="text-lg font-semibold tabular-nums">{value}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>

@@ -1960,3 +1960,68 @@ Then, manually, against the **deployed** URL:
    first two are byte-identical and the third shows one campaign with no PII.
 8. Run the four-step break-check in `docs/ISOLATION_BREAK_CHECK.md` and confirm the tests fail, then
    `supabase db reset` and confirm they pass.
+
+---
+
+## Phase 12 — Post-submission fixes from real user feedback
+
+After the app was live, the user reported three real, observed problems by actually clicking
+through the deployed app: a failed import in the history list, an empty signups chart with no way
+to see further back, and a data-quality banner that didn't explain itself. Investigating each
+against the live project surfaced two more real bugs neither of us had noticed yet.
+
+**What actually happened.**
+
+1. **The "Failed" `kilele-contacts.csv` import in the history list.** Traced via
+   `import_runs.error_summary` (`"unsupported Unicode escape sequence"`) to the exact row
+   (`CT-95855`, a deliberately planted adversarial NUL byte in `full_name`) and cross-referenced
+   against the live table's timestamps: the failure happened at `17:19:52` on build day, and the
+   *same file* succeeded completely three minutes later at `17:23:22` — this was the original bug
+   `stripNullBytes` was written to fix (see its doc comment in `normalize.ts`), and the failed run
+   was leftover debris from testing that fix, not a currently-reproducible bug. Verified the fix is
+   real by running the actual seed row through `validateContactsFile` directly: zero NUL bytes
+   reach any valid row or any issue. Deleted the one stale row from the live `import_runs` table.
+
+2. **The dashboard's 30-day signups chart was permanently empty for Karoo and Marrakech.** Real
+   gap, not a misunderstanding — §2.6/§6 always intended a fixed 30-day window with an explicit
+   empty state, but gave no way to look further back, and the empty state didn't even say when the
+   data actually is. Added `p_days` to `dashboard_signups_daily` (clamped 1–1825 server-side) and a
+   new `dashboard_signup_extent` function; the UI now offers 30/90/365-day and a real "all time"
+   window sized to the brand's actual earliest signup, and the empty state names the exact most
+   recent signup date instead of a bare "no signups here."
+
+3. **The campaign detail page's data-quality banner said "figures don't reconcile" with no visible
+   contradiction.** Real bug: the banner is driven by `reported_opens > reported_delivered`
+   (§2.8), but `reported_opens`/`reported_clicks` were fetched from `dashboard_campaign_performance`
+   and never rendered anywhere — the visible "opens" cards show the engagement-log-computed figure
+   instead, which is a different number and usually doesn't exceed delivered. Added both reported
+   figures to the metrics grid and rewrote the banner to state the actual numbers that tripped each
+   check, e.g. "Reported opens (14,200) exceed reported delivered (11,650)."
+
+4. **A share link 404'd on a fresh page load.** `vercel.json` had `buildCommand`/`outputDirectory`
+   but no SPA rewrite — a client-side navigation to `/shared` worked (React Router intercepts it),
+   but a pasted link or a fresh tab hit Vercel's static file server directly, which has no physical
+   file at that path. Added `"rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]`.
+   Verified real static assets (`/assets/*.js`) still serve directly with a 200 and the correct
+   content-type — Vercel's filesystem match runs before rewrites — and that `/shared?token=...`,
+   `/`, and `/contacts` all now return 200 against the live deployment.
+
+5. **Found while verifying fix #4 against the live project, not reported by the user:** the
+   integration suite's very first real `share_view` call after a fresh `create_share_link` failed
+   with a `57014` statement timeout, not a logic error — confirmed by a standalone script that
+   reproduced the exact SHA-256 round-trip (client hash == stored hash, byte for byte) and then hit
+   the same timeout calling `share_view` directly. `share_view` was the one SECURITY DEFINER RPC in
+   this build that never got the `statement_timeout` override `preview_send` and
+   `dashboard_campaign_performance` already needed for the identical reason (the `authenticated`/
+   `anon` role's default 8s limit, plus this session's own cumulative real-project test load, plus
+   here the deliberately expensive constant-time bcrypt compare). Added `set statement_timeout =
+   '15s'` in `0019_share_view_timeout.sql`, matching the established pattern. Re-verified in
+   isolation: 3/3 share tests pass in ~5s, down from one timing out at the default limit.
+
+**What's still open, unchanged from Phase 11's note:** `preview_send` remains occasionally slow
+under this session's *own* sustained heavy integration-test load specifically (reproduced by
+running the full `test:integration` suite three times back to back while investigating fix #5) —
+it passes cleanly in isolation (~27s, well under its 45s override) every time it was tried alone.
+This is the same pre-existing, already-documented environment characteristic from Phase 7/9, not a
+regression from this pass's changes, and wasn't chased further for the same reason it wasn't then:
+it's a real free-tier compute ceiling under adversarial-scale concurrent testing, not a code defect.

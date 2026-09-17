@@ -29,28 +29,39 @@ export function ContactsPage({ membership }: { membership: Membership }): JSX.El
     return <p className="p-4 text-sm text-muted-foreground">No contacts yet — import a file to get started.</p>;
   }
 
+  const STATUS_BADGE: Record<string, string> = {
+    active: "bg-emerald-100 text-emerald-800",
+    pending: "bg-amber-100 text-amber-800",
+    unsubscribed: "bg-secondary text-secondary-foreground",
+    bounced: "bg-destructive/10 text-destructive",
+  };
+
   return (
-    <div className="mx-auto max-w-4xl space-y-3 p-4">
-      <h2 className="text-lg font-semibold">Contacts</h2>
-      <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="mx-auto max-w-4xl space-y-3 p-4 sm:p-6">
+      <h2 className="text-xl font-semibold tracking-tight">Contacts</h2>
+      <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
         <table className="w-full text-left text-sm">
           <thead className="bg-secondary">
             <tr>
-              <th className="px-3 py-2 font-medium">Name</th>
-              <th className="px-3 py-2 font-medium">Email</th>
-              <th className="px-3 py-2 font-medium">Country</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Signed up</th>
+              <th className="px-3 py-2.5 font-medium">Name</th>
+              <th className="px-3 py-2.5 font-medium">Email</th>
+              <th className="px-3 py-2.5 font-medium">Country</th>
+              <th className="px-3 py-2.5 font-medium">Status</th>
+              <th className="px-3 py-2.5 font-medium">Signed up</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {contacts.map((c) => (
-              <tr key={c.id}>
-                <td className="px-3 py-2">{c.fullName ?? "—"}</td>
-                <td className="px-3 py-2 font-mono text-xs">{c.email ?? "—"}</td>
-                <td className="px-3 py-2">{c.country ?? "—"}</td>
-                <td className="px-3 py-2">{STATUS_LABEL[c.status] ?? c.status}</td>
-                <td className="px-3 py-2">{c.signupAt ? new Date(c.signupAt).toLocaleDateString() : "—"}</td>
+              <tr key={c.id} className="hover:bg-accent/50">
+                <td className="px-3 py-2.5">{c.fullName ?? "—"}</td>
+                <td className="px-3 py-2.5 font-mono text-xs">{c.email ?? "—"}</td>
+                <td className="px-3 py-2.5">{c.country ?? "—"}</td>
+                <td className="px-3 py-2.5">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[c.status] ?? "bg-secondary text-secondary-foreground"}`}>
+                    {STATUS_LABEL[c.status] ?? c.status}
+                  </span>
+                </td>
+                <td className="px-3 py-2.5">{c.signupAt ? new Date(c.signupAt).toLocaleDateString() : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -61,7 +72,7 @@ export function ContactsPage({ membership }: { membership: Membership }): JSX.El
           type="button"
           onClick={() => void fetchNextPage()}
           disabled={isFetchingNextPage}
-          className="min-h-11 rounded-md border border-input px-4 py-2 text-sm disabled:opacity-50"
+          className="min-h-11 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
         >
           {isFetchingNextPage ? "Loading…" : "Load more"}
         </button>

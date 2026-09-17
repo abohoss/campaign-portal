@@ -10,7 +10,11 @@ import { supabase } from "./lib/supabase.js";
 import type { Membership } from "./features/auth/useMembership.js";
 
 const NAV_LINK_CLASS = ({ isActive }: { isActive: boolean }): string =>
-  `flex min-h-11 items-center px-3 text-sm ${isActive ? "font-medium text-foreground" : "text-muted-foreground"}`;
+  `flex min-h-11 items-center border-b-2 px-3 text-sm font-medium transition-colors ${
+    isActive
+      ? "border-primary text-foreground"
+      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+  }`;
 
 /** "/shared" is the one route a stranger with no session must reach — it's outside AuthGate
  *  entirely, unlike every other route in this app. */
@@ -30,20 +34,20 @@ function AuthenticatedApp(): JSX.Element {
     <AuthGate>
       {(membership) => (
         <div className="min-h-screen bg-background text-foreground">
-          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-4">
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-3 sm:px-6">
             <div>
-              <h1 className="text-lg font-semibold">{membership.brandName}</h1>
-              <p className="text-xs text-muted-foreground">Signed in as {membership.role}</p>
+              <h1 className="text-base font-semibold leading-tight">{membership.brandName}</h1>
+              <p className="text-xs capitalize text-muted-foreground">Signed in as {membership.role}</p>
             </div>
             <button
               type="button"
               onClick={() => void supabase.auth.signOut()}
-              className="min-h-11 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium"
+              className="min-h-11 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
             >
               Sign out
             </button>
           </header>
-          <nav className="flex gap-1 overflow-x-auto border-b border-border px-2">
+          <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card px-2 sm:px-4">
             <NavLink to="/" end className={NAV_LINK_CLASS}>
               Dashboard
             </NavLink>

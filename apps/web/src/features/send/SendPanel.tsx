@@ -50,7 +50,7 @@ export function SendPanel({ campaignId, isOwner }: { campaignId: string; isOwner
   }
 
   return (
-    <div className="space-y-2 rounded-lg border border-border p-4">
+    <div className="space-y-2 rounded-lg border border-border bg-card p-4 shadow-sm">
       <h3 className="text-sm font-medium">Send</h3>
 
       {!send && (
@@ -85,7 +85,7 @@ function NoSendYet({
       type="button"
       onClick={onPreview}
       disabled={isPending}
-      className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+      className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
     >
       {isPending ? "Loading…" : "Preview send"}
     </button>
@@ -114,7 +114,7 @@ function DraftSend({
           type="button"
           onClick={onConfirm}
           disabled={isPending}
-          className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {isPending ? "Confirming…" : `Confirm send to ${send.snapshotCount.toLocaleString()}`}
         </button>
