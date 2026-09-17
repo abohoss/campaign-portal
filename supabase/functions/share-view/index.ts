@@ -6,8 +6,17 @@
 // function just forwards the result.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, "content-type": "application/json" },
+  });
 }
 
 const INVALID_RESPONSE = { error: "invalid token or password" };
@@ -66,6 +75,7 @@ function toShareResult(row: Record<string, unknown>) {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
   if (req.method !== "POST") return json(INVALID_RESPONSE, 405);
 
   const credentials = await readCredentials(req);
